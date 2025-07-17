@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cbt-journal"
+version = "0.1.0"
+description = "Personal CBT Journal with RAG-enhanced memory"
+authors = [{name = "CBT Journal", email = "sagrard@fastmail.com"}]
+dependencies = [
+    "qdrant-client>=1.14.3"
+]
