@@ -161,15 +161,15 @@ class CostControlManager:
         # Pricing OpenAI (aggiornato Novembre 2024)
         pricing = {
             "gpt-4o-2024-11-20": {
-                "input": 0.00250,   # $2.50 per 1M input tokens
-                "output": 0.01000   # $10.00 per 1M output tokens
+                "input": 2.50,      # $2.50 per 1M input tokens
+                "output": 10.00     # $10.00 per 1M output tokens
             },
             "gpt-4o-mini": {
-                "input": 0.000150,  # $0.150 per 1M input tokens
-                "output": 0.000600  # $0.600 per 1M output tokens
+                "input": 0.150,     # $0.150 per 1M input tokens
+                "output": 0.600     # $0.600 per 1M output tokens
             },
             "text-embedding-3-large": {
-                "input": 0.000130,  # $0.130 per 1M tokens
+                "input":  0.130,    # $0.130 per 1M tokens
                 "output": 0.0       # No output cost for embeddings
             }
         }
