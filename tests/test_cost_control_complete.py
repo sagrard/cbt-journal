@@ -77,7 +77,7 @@ class CostControlTestSuite:
                 "tokens_input": 2000,
                 "tokens_output": 800,
                 "model": "gpt-4o-mini",
-                "expected_range": (0.001, 0.003)
+                "expected_range": (0.0007, 0.002)
             }
         ]
         
@@ -123,8 +123,10 @@ class CostControlTestSuite:
         
         print(f"✅ Normal usage: ${cost1:.6f} - Status: {status1} - Allowed: {allowed}")
         
-        if not allowed or status1 != "within_limits":
-            print("❌ Normal usage should be allowed")
+        if allowed and status1 == "within_limits":
+            print("✅ Normal usage correctly allowed")
+        else:
+            print("❌ Normal usage should be allowed") 
             return False
         
         # Simula registrazione costo

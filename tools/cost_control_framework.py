@@ -500,7 +500,7 @@ class CostControlManager:
         suggestions = []
         
         # Suggerimento riduzione token se sessione costosa
-        if session_budget.budget_utilization > 0.7:
+        if session_budget.budget_utilization > 0.5:
             suggestions.append(OptimizationSuggestion(
                 type="token_reduction",
                 description="Consider reducing context length or response tokens",
