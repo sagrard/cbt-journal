@@ -123,7 +123,7 @@ class CostControlTestSuite:
         
         print(f"✅ Normal usage: ${cost1:.6f} - Status: {status1} - Allowed: {allowed}")
         
-        if allowed and status1 == "within_limits":
+        if allowed and status1 == BudgetStatus.WITHIN_LIMITS:
             print("✅ Normal usage correctly allowed")
         else:
             print("❌ Normal usage should be allowed") 
@@ -144,8 +144,8 @@ class CostControlTestSuite:
         # Test aggiunta che supera budget
         allowed, result = self.cost_manager.pre_api_check(
             session_id=session_id,
-            tokens_input=8000,
-            tokens_output=3000,
+            tokens_input=15000,
+            tokens_output=8000,
             model="gpt-4o-2024-11-20"
         )
         
@@ -154,7 +154,7 @@ class CostControlTestSuite:
         
         print(f"⚠️  Over budget attempt: ${cost2:.6f} - Status: {status2} - Allowed: {allowed}")
         
-        if allowed or status2 != "over_budget":
+        if allowed or status2 != BudgetStatus.OVER_BUDGET:
             print("❌ Over budget usage should be blocked")
             return False
         
