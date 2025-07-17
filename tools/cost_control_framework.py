@@ -4,6 +4,7 @@ Cost Control Framework per CBT Journal
 Implementa budget protection bulletproof secondo schema v3.3.0
 """
 
+import contextlib
 import os
 import json
 import sqlite3
@@ -109,7 +110,7 @@ class CostControlManager:
         """Inizializza database SQLite per tracking costi"""
         os.makedirs(os.path.dirname(self.db_path) if os.path.dirname(self.db_path) else ".", exist_ok=True)
         
-        with sqlite3.connect(self.db_path) as conn:
+        with contextlib.closing(sqlite3.connect(self.db_path)) as conn:
             # Tabella per tracking API calls
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS api_costs (
@@ -352,7 +353,7 @@ class CostControlManager:
                        purpose: str = None, processing_time_ms: int = None):
         """Registra costo API effettivo"""
         
-        with sqlite3.connect(self.db_path) as conn:
+        with contextlib.closing(sqlite3.connect(self.db_path)) as conn:
             conn.execute("""
                 INSERT INTO api_costs 
                 (session_id, timestamp, api_type, model, provider, tokens_input, tokens_output, 
@@ -406,7 +407,7 @@ class CostControlManager:
     
     def _get_session_cost(self, session_id: str) -> float:
         """Get costo corrente sessione"""
-        with sqlite3.connect(self.db_path) as conn:
+        with contextlib.closing(sqlite3.connect(self.db_path)) as conn:
             cursor = conn.execute(
                 "SELECT SUM(cost_usd) FROM api_costs WHERE session_id = ?",
                 (session_id,)
@@ -416,7 +417,7 @@ class CostControlManager:
     
     def _get_daily_cost(self, date_str: str) -> float:
         """Get costo giornaliero"""
-        with sqlite3.connect(self.db_path) as conn:
+        with contextlib.closing(sqlite3.connect(self.db_path)) as conn:
             cursor = conn.execute(
                 "SELECT SUM(cost_usd) FROM api_costs WHERE DATE(timestamp) = ?",
                 (date_str,)
@@ -426,7 +427,7 @@ class CostControlManager:
     
     def _get_daily_sessions_count(self, date_str: str) -> int:
         """Get numero sessioni giornaliere"""
-        with sqlite3.connect(self.db_path) as conn:
+        with contextlib.closing(sqlite3.connect(self.db_path)) as conn:
             cursor = conn.execute(
                 "SELECT COUNT(DISTINCT session_id) FROM api_costs WHERE DATE(timestamp) = ?",
                 (date_str,)
@@ -435,7 +436,7 @@ class CostControlManager:
     
     def _get_monthly_cost(self, month: str) -> float:
         """Get costo mensile (formato YYYY-MM)"""
-        with sqlite3.connect(self.db_path) as conn:
+        with contextlib.closing(sqlite3.connect(self.db_path)) as conn:
             cursor = conn.execute(
                 "SELECT SUM(cost_usd) FROM api_costs WHERE strftime('%Y-%m', timestamp) = ?",
                 (month,)
@@ -473,7 +474,7 @@ class CostControlManager:
         # Get average session cost ultima settimana
         week_ago = (datetime.now().date() - timedelta(days=7)).isoformat()
 
-        with sqlite3.connect(self.db_path) as conn:
+        with contextlib.closing(sqlite3.connect(self.db_path)) as conn:
             cursor = conn.execute("""
                 SELECT AVG(session_total) FROM (
                     SELECT session_id, SUM(cost_usd) as session_total 
@@ -529,8 +530,8 @@ class CostControlManager:
     
     def _log_alert(self, alert_type: str, severity: str, message: str):
         """Log alert nel database"""
-        
-        with sqlite3.connect(self.db_path) as conn:
+
+        with contextlib.closing(sqlite3.connect(self.db_path)) as conn:
             conn.execute("""
                 INSERT INTO cost_alerts (timestamp, alert_type, severity, message, cost_data)
                 VALUES (?, ?, ?, ?, ?)
