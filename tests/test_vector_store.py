@@ -181,10 +181,27 @@ def test_get_session(vector_store, mock_client):
 def test_update_session(vector_store, mock_client):
     session_id = "test_update"
     existing_session = create_test_session(session_id)
-    mock_point = Mock()
-    mock_point.id = session_id
-    mock_point.payload = existing_session
-    mock_client.retrieve.return_value = [mock_point]
+    existing_vector = create_test_embedding()
+    
+    # Mock for payload retrieval
+    mock_payload_point = Mock()
+    mock_payload_point.id = session_id
+    mock_payload_point.payload = existing_session
+    
+    # Mock for vector retrieval
+    mock_vector_point = Mock()
+    mock_vector_point.id = session_id
+    mock_vector_point.vector = existing_vector
+    
+    # Setup retrieve to return different results based on call parameters
+    def mock_retrieve(*args, **kwargs):
+        if kwargs.get('with_vectors', False):
+            return [mock_vector_point]
+        else:
+            return [mock_payload_point]
+    
+    mock_client.retrieve.side_effect = mock_retrieve
+    
     mock_result = Mock()
     mock_result.status.name = "COMPLETED"
     mock_client.upsert.return_value = mock_result
@@ -197,8 +214,9 @@ def test_update_session(vector_store, mock_client):
     }
     result = vector_store.update_session(session_id, updates)
     assert result is True
+    
     # Non-existent session
-    mock_client.retrieve.return_value = []
+    mock_client.retrieve.side_effect = lambda *args, **kwargs: []
     with pytest.raises(CBTVectorStoreError):
         vector_store.update_session("non_existent", updates)
 
@@ -482,3 +500,44 @@ def test_search_similar_empty_results(vector_store, mock_client):
     results = vector_store.search_similar(query_embedding, limit=5)
     assert len(results) == 0
     assert isinstance(results, list)
+
+def test_update_session_without_new_embedding(vector_store, mock_client):
+    # Test updating session without providing new embedding
+    session_id = "test_update_no_embedding"
+    existing_session = create_test_session(session_id)
+    existing_vector = create_test_embedding()
+    
+    # Mock for payload retrieval
+    mock_payload_point = Mock()
+    mock_payload_point.id = session_id
+    mock_payload_point.payload = existing_session
+    
+    # Mock for vector retrieval
+    mock_vector_point = Mock()
+    mock_vector_point.id = session_id
+    mock_vector_point.vector = existing_vector
+    
+    # Setup retrieve to return different results based on call parameters
+    def mock_retrieve(*args, **kwargs):
+        if kwargs.get('with_vectors', False):
+            return [mock_vector_point]
+        else:
+            return [mock_payload_point]
+    
+    mock_client.retrieve.side_effect = mock_retrieve
+    
+    mock_result = Mock()
+    mock_result.status.name = "COMPLETED"
+    mock_client.upsert.return_value = mock_result
+    
+    updates = {'duration_minutes': 45}
+    
+    result = vector_store.update_session(session_id, updates)
+    assert result is True
+    
+    # Verify upsert was called with existing vector preserved
+    mock_client.upsert.assert_called_once()
+    call_args = mock_client.upsert.call_args
+    upserted_point = call_args[1]["points"][0]
+    assert upserted_point.id == session_id
+    assert upserted_point.vector == existing_vector

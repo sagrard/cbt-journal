@@ -300,11 +300,30 @@ class CBTVectorStore:
             updated_payload['system_metadata']['updated_at'] = datetime.now().isoformat()
             
             # Create updated point
-            point = PointStruct(
-                id=session_id,
-                vector=new_embedding if new_embedding is not None else [],
-                payload=updated_payload
-            )
+            if new_embedding is not None:
+                # Update with new embedding
+                point = PointStruct(
+                    id=session_id,
+                    vector=new_embedding,
+                    payload=updated_payload
+                )
+            else:
+                # Update payload only, need to retrieve existing vector
+                existing_points = self.client.retrieve(
+                    collection_name=self.collection_name,
+                    ids=[session_id],
+                    with_payload=False,
+                    with_vectors=True
+                )
+                if not existing_points:
+                    raise CBTVectorStoreError(f"Session {session_id} not found for vector retrieval")
+                
+                existing_vector = existing_points[0].vector
+                point = PointStruct(
+                    id=session_id,
+                    vector=existing_vector,
+                    payload=updated_payload
+                )
             
             # Update in Qdrant
             result = self.client.upsert(
