@@ -23,128 +23,308 @@ from cbt_journal.rag.vector_store import CBTVectorStore, CBTVectorStoreError, cr
 from cbt_journal.utils.cost_control import CostControlManager
 
 
-class CBTVectorStoreTestSuite:
-    """Complete test suite for CBT Vector Store"""
-    
-    def __init__(self):
-        """Initialize test environment with mock Qdrant"""
-        self.temp_dir = tempfile.mkdtemp(prefix="cbt_vector_test_")
-        self.collection_name = "test_cbt_sessions"
-        
-        # Create mock Qdrant client
-        self.mock_client = Mock(spec=QdrantClient)
-        self.cost_manager = CostControlManager(
-            db_path=os.path.join(self.temp_dir, "test_costs.db")
-        )
-        
-        # Setup mock for collection verification
-        self._setup_collection_verification_mock()
-        
-        # Create test vector store
-        self.vector_store = CBTVectorStore(
-            qdrant_client=self.mock_client,
-            cost_manager=self.cost_manager,
-            collection_name=self.collection_name
-        )
-        
-        print(f"🧪 Test environment initialized")
-        print(f"📁 Temp dir: {self.temp_dir}")
-    
-    def _setup_collection_verification_mock(self):
-        """Setup proper mock for collection verification"""
-        # Mock get_collections response
+
+# ===================== PYTEST REFACTORING =====================
+import pytest
+
+# ---- Fixtures ----
+
+@pytest.fixture(scope="module")
+def temp_dir():
+    d = tempfile.mkdtemp(prefix="cbt_vector_test_")
+    yield d
+    shutil.rmtree(d)
+
+@pytest.fixture
+def collection_name():
+    return "test_cbt_sessions"
+
+@pytest.fixture
+def mock_client(collection_name):
+    client = Mock(spec=QdrantClient)
+    # Setup collection verification
+    mock_collection = Mock()
+    mock_collection.name = collection_name
+    mock_collections = Mock()
+    mock_collections.collections = [mock_collection]
+    client.get_collections.return_value = mock_collections
+    # Setup get_collection
+    mock_info = Mock()
+    mock_info.config = Mock()
+    mock_info.config.params = Mock()
+    mock_info.config.params.vectors = Mock()
+    mock_info.config.params.vectors.size = 3072
+    client.get_collection.return_value = mock_info
+    return client
+
+@pytest.fixture
+def cost_manager(temp_dir):
+    return CostControlManager(db_path=os.path.join(temp_dir, "test_costs.db"))
+
+@pytest.fixture
+def vector_store(mock_client, cost_manager, collection_name):
+    return CBTVectorStore(
+        qdrant_client=mock_client,
+        cost_manager=cost_manager,
+        collection_name=collection_name
+    )
+
+# ---- Helper functions ----
+
+def create_test_session(session_id: str = None):
+    if session_id is None:
+        session_id = str(uuid.uuid4())
+    return {
+        "session_id": session_id,
+        "timestamp": datetime.now().isoformat(),
+        "data_source": "local_system",
+        "session_type": "emotional_processing",
+        "duration_minutes": 25,
+        "content": {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Test message for validation",
+                    "timestamp": datetime.now().isoformat(),
+                    "word_count": 5
+                }
+            ],
+            "conversation_count": 1,
+            "total_words": {"user": 5, "assistant": 0, "total": 5}
+        },
+        "ai_models": {
+            "tracking_level": "complete",
+            "response_model": {
+                "name": "gpt-4o-2024-11-20",
+                "confidence": "exact"
+            }
+        }
+    }
+
+def create_test_embedding():
+    return [random.random() for _ in range(3072)]
+
+# ---- Test functions ----
+
+def test_initialization(mock_client, cost_manager, collection_name):
+    # Should succeed
+    store = CBTVectorStore(
+        qdrant_client=mock_client,
+        cost_manager=cost_manager,
+        collection_name=collection_name
+    )
+    assert store.collection_name == collection_name
+    # Should fail with wrong collection name
+    mock_collections = Mock()
+    mock_collections.collections = [Mock(name="different_collection")]
+    with patch.object(mock_client, 'get_collections', return_value=mock_collections):
+        with pytest.raises(CBTVectorStoreError):
+            CBTVectorStore(
+                qdrant_client=mock_client,
+                cost_manager=cost_manager,
+                collection_name="non_existent_collection"
+            )
+
+def test_store_session(vector_store, mock_client):
+    session_data = create_test_session()
+    embedding = create_test_embedding()
+    # Mock upsert
+    mock_result = Mock()
+    mock_result.status.name = "COMPLETED"
+    mock_client.upsert.return_value = mock_result
+    session_id = vector_store.store_session(session_data, embedding)
+    assert session_id == session_data["session_id"]
+    mock_client.upsert.assert_called_once()
+    # Invalid embedding
+    with pytest.raises(CBTVectorStoreError):
+        vector_store.store_session(session_data, [1, 2, 3])
+    # Missing required fields
+    with pytest.raises(CBTVectorStoreError):
+        vector_store.store_session({"session_id": "test"}, embedding)
+
+def test_search_similar(vector_store, mock_client):
+    # Mock search results
+    mock_point = Mock()
+    mock_point.id = "test_session_123"
+    mock_point.score = 0.85
+    mock_point.payload = create_test_session("test_session_123")
+    mock_results = Mock()
+    mock_results.points = [mock_point]
+    mock_client.query_points.return_value = mock_results
+    query_embedding = create_test_embedding()
+    results = vector_store.search_similar(query_embedding, limit=5)
+    assert len(results) == 1
+    result = results[0]
+    assert result["session_id"] == "test_session_123"
+    assert result["score"] == 0.85
+    # Filters
+    filters = {
+        'data_source': 'local_system',
+        'clinical_assessment.mood_rating': {'range': {'gte': 5, 'lte': 8}}
+    }
+    vector_store.search_similar(query_embedding, filters=filters, limit=10)
+    # Invalid embedding
+    with pytest.raises(CBTVectorStoreError):
+        vector_store.search_similar([1, 2, 3], limit=5)
+
+def test_get_session(vector_store, mock_client):
+    session_id = "test_direct_retrieval"
+    mock_point = Mock()
+    mock_point.id = session_id
+    mock_point.payload = create_test_session(session_id)
+    mock_client.retrieve.return_value = [mock_point]
+    result = vector_store.get_session(session_id)
+    assert result is not None
+    assert result["session_id"] == session_id
+    # Non-existent session
+    mock_client.retrieve.return_value = []
+    result = vector_store.get_session("non_existent")
+    assert result is None
+
+def test_update_session(vector_store, mock_client):
+    session_id = "test_update"
+    existing_session = create_test_session(session_id)
+    mock_point = Mock()
+    mock_point.id = session_id
+    mock_point.payload = existing_session
+    mock_client.retrieve.return_value = [mock_point]
+    mock_result = Mock()
+    mock_result.status.name = "COMPLETED"
+    mock_client.upsert.return_value = mock_result
+    updates = {
+        'duration_minutes': 45,
+        'clinical_assessment': {
+            'mood_rating': 8,
+            'anxiety_level': 3
+        }
+    }
+    result = vector_store.update_session(session_id, updates)
+    assert result is True
+    # Non-existent session
+    mock_client.retrieve.return_value = []
+    with pytest.raises(CBTVectorStoreError):
+        vector_store.update_session("non_existent", updates)
+
+def test_delete_session(vector_store, mock_client, collection_name):
+    session_id = "test_delete"
+    mock_result = Mock()
+    mock_result.status.name = "COMPLETED"
+    mock_client.delete.return_value = mock_result
+    result = vector_store.delete_session(session_id)
+    assert result is True
+    mock_client.delete.assert_called_once()
+    call_args = mock_client.delete.call_args
+    assert call_args[1]["collection_name"] == collection_name
+    assert session_id in call_args[1]["points_selector"]
+
+def test_search_by_filters(vector_store, mock_client):
+    mock_point = Mock()
+    mock_point.id = "filtered_session"
+    mock_point.payload = create_test_session("filtered_session")
+    mock_client.scroll.return_value = ([mock_point], None)
+    filters = {
+        'data_source': 'local_system',
+        'session_type': 'emotional_processing'
+    }
+    results = vector_store.search_by_filters(filters, limit=10)
+    assert len(results) == 1
+    assert results[0]["session_id"] == "filtered_session"
+    # Empty filters
+    with pytest.raises(CBTVectorStoreError):
+        vector_store.search_by_filters({})
+
+def test_collection_stats(vector_store, mock_client):
+    mock_info = Mock()
+    mock_info.status = Mock()
+    mock_info.status.__str__ = Mock(return_value="green")
+    mock_info.points_count = 150
+    mock_info.vectors_count = 150
+    mock_info.config.params.vectors.size = 3072
+    mock_info.config.params.vectors.distance = Distance.COSINE
+    mock_client.get_collection.return_value = mock_info
+    stats = vector_store.get_collection_stats()
+    assert stats["points_count"] == 150
+    assert stats["schema_version"] == "3.3.0"
+
+def test_health_check(vector_store, mock_client, collection_name):
+    mock_collections = Mock()
+    mock_collections.collections = [Mock(name=collection_name)]
+    mock_client.get_collections.return_value = mock_collections
+    mock_info = Mock()
+    mock_info.status = "green"
+    mock_info.points_count = 100
+    mock_info.vectors_count = 100
+    mock_client.get_collection.return_value = mock_info
+    mock_client.scroll.return_value = ([], None)
+    health = vector_store.health_check()
+    assert "status" in health
+    assert "checks" in health
+    assert "timestamp" in health
+
+def test_factory_function():
+    with patch('cbt_journal.rag.vector_store.QdrantClient') as mock_qdrant_class:
+        mock_client_instance = Mock()
+        mock_qdrant_class.return_value = mock_client_instance
         mock_collection = Mock()
-        mock_collection.name = self.collection_name
-        
+        mock_collection.name = "test_collection"
         mock_collections = Mock()
         mock_collections.collections = [mock_collection]
-        self.mock_client.get_collections.return_value = mock_collections
-        
-        # Mock get_collection response
+        mock_client_instance.get_collections.return_value = mock_collections
         mock_info = Mock()
         mock_info.config = Mock()
         mock_info.config.params = Mock()
         mock_info.config.params.vectors = Mock()
         mock_info.config.params.vectors.size = 3072
-        self.mock_client.get_collection.return_value = mock_info
-    
-    def cleanup(self):
-        """Clean up test environment"""
-        if os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir)
-        print("🧹 Test cleanup completed")
-    
-    def _create_test_session(self, session_id: str = None) -> dict:
-        """Create valid test session data"""
-        if session_id is None:
-            session_id = str(uuid.uuid4())
-        
-        return {
-            "session_id": session_id,
-            "timestamp": datetime.now().isoformat(),
-            "data_source": "local_system",
-            "session_type": "emotional_processing",
-            "duration_minutes": 25,
-            "content": {
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": "Test message for validation",
-                        "timestamp": datetime.now().isoformat(),
-                        "word_count": 5
-                    }
-                ],
-                "conversation_count": 1,
-                "total_words": {"user": 5, "assistant": 0, "total": 5}
-            },
-            "ai_models": {
-                "tracking_level": "complete",
-                "response_model": {
-                    "name": "gpt-4o-2024-11-20",
-                    "confidence": "exact"
-                }
-            }
-        }
-    
-    def _create_test_embedding(self) -> list:
-        """Create valid 3072-dimension test embedding"""
-        return [random.random() for _ in range(3072)]
-    
-    def test_initialization(self) -> bool:
-        """Test 1: Vector store initialization"""
-        print("\n" + "="*60)
-        print("🔧 TEST 1: INITIALIZATION")
-        print("="*60)
-        
-        try:
-            # This test is already satisfied by __init__ 
-            # since we successfully created self.vector_store
-            print("✅ Initialization successful")
-            print(f"   Collection: {self.vector_store.collection_name}")
-            print(f"   Client: Connected")
-            print(f"   Cost manager: Configured")
-            
-            # Test initialization with wrong collection name should fail
-            mock_collections = Mock()
-            mock_collections.collections = [Mock(name="different_collection")]
-            
-            with patch.object(self.mock_client, 'get_collections', return_value=mock_collections):
-                try:
-                    CBTVectorStore(
-                        qdrant_client=self.mock_client,
-                        cost_manager=self.cost_manager,
-                        collection_name="non_existent_collection"
-                    )
-                    print("❌ Should have failed with wrong collection name")
-                    return False
-                except CBTVectorStoreError:
-                    print("✅ Wrong collection name rejected correctly")
-            
-            return True
-            
-        except Exception as e:
-            print(f"❌ Initialization failed: {str(e)}")
-            return False
+        mock_client_instance.get_collection.return_value = mock_info
+        vector_store = create_vector_store(
+            qdrant_host="test_host",
+            qdrant_port=9999,
+            collection_name="test_collection"
+        )
+        assert isinstance(vector_store, CBTVectorStore)
+        assert vector_store.collection_name == "test_collection"
+        mock_qdrant_class.assert_called_once_with(host="test_host", port=9999)
+
+
+def test_error_handling_connection_error(mock_client, cost_manager):
+    # Qdrant connection error
+    mock_client.get_collections.side_effect = Exception("Connection failed")
+    with pytest.raises(CBTVectorStoreError):
+        CBTVectorStore(
+            qdrant_client=mock_client,
+            cost_manager=cost_manager,
+            collection_name="test"
+        )
+
+def test_error_handling_upsert_failure(collection_name, cost_manager):
+    # Nuovo mock_client per isolamento
+    client = Mock(spec=QdrantClient)
+    # Collection exists
+    mock_collection = Mock()
+    mock_collection.name = collection_name
+    mock_collections = Mock()
+    mock_collections.collections = [mock_collection]
+    client.get_collections.return_value = mock_collections
+    # Collection info
+    mock_info = Mock()
+    mock_info.config = Mock()
+    mock_info.config.params = Mock()
+    mock_info.config.params.vectors = Mock()
+    mock_info.config.params.vectors.size = 3072
+    client.get_collection.return_value = mock_info
+    # Upsert failure
+    mock_result = Mock()
+    mock_result.status.name = "FAILED"
+    client.upsert.return_value = mock_result
+    vector_store = CBTVectorStore(
+        qdrant_client=client,
+        cost_manager=cost_manager,
+        collection_name=collection_name
+    )
+    with pytest.raises(CBTVectorStoreError):
+        session_data = create_test_session()
+        embedding = create_test_embedding()
+        vector_store.store_session(session_data, embedding)
     
     def test_store_session(self) -> bool:
         """Test 2: Session storage"""
@@ -672,18 +852,3 @@ class CBTVectorStoreTestSuite:
         else:
             print("⚠️  SOME TESTS FAILED - REVIEW BEFORE PROCEEDING")
             return False
-
-
-def main():
-    """Main test function"""
-    test_suite = CBTVectorStoreTestSuite()
-    
-    try:
-        success = test_suite.run_all_tests()
-        return 0 if success else 1
-    finally:
-        test_suite.cleanup()
-
-
-if __name__ == "__main__":
-    exit(main())
