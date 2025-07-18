@@ -13,9 +13,9 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, FieldCondition, Range
 
 class QdrantDefaultConfigTest:
-    def __init__(self, host: str = "localhost", port: int = 6333):
+    def __init__(self, host: str = "localhost", port: int = 6334, prefer_grpc: bool = True):
         """Test configurazione default Qdrant"""
-        self.client = QdrantClient(host=host, port=port)
+        self.client = QdrantClient(host=host, port=port, prefer_grpc=prefer_grpc)
         self.collection_name = "cbt_diary_sessions"
         
     def test_connection_and_info(self) -> bool:

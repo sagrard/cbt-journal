@@ -531,23 +531,25 @@ class CBTVectorStore:
 
 # Factory function for easy initialization
 def create_vector_store(qdrant_host: str = "localhost",
-                       qdrant_port: int = 6333,
+                       qdrant_port: int = 6334,
                        collection_name: str = "cbt_journal_sessions",
-                       cost_manager: Optional[CostControlManager] = None) -> CBTVectorStore:
+                       cost_manager: Optional[CostControlManager] = None,
+                       prefer_grpc: bool = True) -> CBTVectorStore:
     """
     Factory function to create configured CBT Vector Store
     
     Args:
         qdrant_host: Qdrant server host
-        qdrant_port: Qdrant server port
+        qdrant_port: Qdrant server port (6334 for gRPC, 6333 for REST)
         collection_name: Collection name
         cost_manager: Optional cost manager (created if None)
+        prefer_grpc: Use gRPC interface (recommended for performance)
         
     Returns:
         Configured CBTVectorStore instance
     """
-    # Create Qdrant client
-    qdrant_client = QdrantClient(host=qdrant_host, port=qdrant_port)
+    # Create Qdrant client with gRPC interface
+    qdrant_client = QdrantClient(host=qdrant_host, port=qdrant_port, prefer_grpc=prefer_grpc)
     
     # Create cost manager if not provided
     if cost_manager is None:

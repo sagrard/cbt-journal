@@ -298,7 +298,7 @@ def test_factory_function():
         )
         assert isinstance(vector_store, CBTVectorStore)
         assert vector_store.collection_name == "test_collection"
-        mock_qdrant_class.assert_called_once_with(host="test_host", port=9999)
+        mock_qdrant_class.assert_called_once_with(host="test_host", port=9999, prefer_grpc=True)
 
 
 def test_error_handling_connection_error(mock_client, cost_manager):

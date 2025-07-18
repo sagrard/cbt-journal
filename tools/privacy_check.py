@@ -9,11 +9,11 @@ import json
 from qdrant_client import QdrantClient
 
 class QdrantPrivacyCheck:
-    def __init__(self, host: str = "localhost", port: int = 6333):
+    def __init__(self, host: str = "localhost", port: int = 6334, prefer_grpc: bool = True):
         self.host = host
         self.port = port
-        self.base_url = f"http://{host}:{port}"
-        self.client = QdrantClient(host=host, port=port)
+        self.base_url = f"http://{host}:6333"  # REST API for telemetry check
+        self.client = QdrantClient(host=host, port=port, prefer_grpc=prefer_grpc)
     
     def check_telemetry_endpoint(self) -> bool:
         """Verifica configurazione telemetry (locale OK, usage statistics NO)"""

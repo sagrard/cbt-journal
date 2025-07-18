@@ -19,7 +19,7 @@ from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, Fi
 # ---- Fixtures ----
 @pytest.fixture(scope="module")
 def qdrant_client():
-    client = QdrantClient(host="localhost", port=6333)
+    client = QdrantClient(host="localhost", port=6334, prefer_grpc=True)
     yield client
 
 @pytest.fixture(scope="module")

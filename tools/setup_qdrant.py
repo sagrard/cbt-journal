@@ -10,9 +10,9 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, FieldCondition, Range, PayloadSchemaType
 
 class CBTQdrantV330Setup:
-    def __init__(self, host: str = "localhost", port: int = 6333):
+    def __init__(self, host: str = "localhost", port: int = 6334, prefer_grpc: bool = True):
         """Inizializza connessione Qdrant per CBT Journal v3.3.0"""
-        self.client = QdrantClient(host=host, port=port)
+        self.client = QdrantClient(host=host, port=port, prefer_grpc=prefer_grpc)
         self.collection_name = "cbt_journal_sessions"  # Nome corretto dal .env.example
         
     def create_cbt_collection(self) -> bool:
