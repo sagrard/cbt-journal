@@ -1,0 +1,44 @@
+[bandit]
+# Bandit configuration for CBT Journal project
+# Security linting for Python code
+
+# Paths to scan
+targets = cbt_journal,tools
+
+# Paths to exclude
+exclude_dirs = 
+    /tests,
+    /venv,
+    /.venv,
+    /env,
+    /build,
+    /dist,
+    /__pycache__,
+    /.pytest_cache,
+    /.mypy_cache
+
+# Test IDs to skip
+skips = 
+    # B101: Use of assert detected (common in tests)
+    B101,
+    # B601: paramiko calls (not used in this project)
+    B601,
+    # B602: subprocess calls (we use subprocess carefully)
+    B602
+
+# Security severity levels to report
+# LOW, MEDIUM, HIGH
+severity = MEDIUM
+
+# Confidence levels to report  
+# LOW, MEDIUM, HIGH
+confidence = MEDIUM
+
+# Output format
+format = txt
+
+# Additional bandit options
+recursive = true
+aggregate = file
+number = 3
+level = 2

@@ -175,4 +175,59 @@ pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python
 
+# CBT Journal specific
+# ====================
+
+# Data files
 data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Cost control database
+cost_control.db
+test_costs.db
+
+# Qdrant data (if running locally)
+qdrant_data/
+
+# Docker volumes
+volumes/
+
+# Configuration files with secrets
+.env.local
+.env.production
+secrets.yaml
+config.local.yaml
+
+# IDE files
+.vscode/settings.json
+.vscode/launch.json
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# Claude settings (keep structure but not local settings)
+.claude/settings.local.json
