@@ -14,7 +14,7 @@ import os
 # Aggiungi path per import locale
 sys.path.append(str(Path(__file__).parent.parent))
 
-from tools.cost_control_framework import CostControlManager, BudgetStatus
+from cbt_journal.utils.cost_control import CostControlManager, BudgetStatus
 
 class CostControlCLI:
     """Command Line Interface per Cost Control"""

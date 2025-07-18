@@ -10,3 +10,6 @@ authors = [{name = "CBT Journal", email = "sagrard@fastmail.com"}]
 dependencies = [
     "qdrant-client>=1.14.3"
 ]
+
+[project.scripts]
+cbt-cost = "cbt_journal.utils.cost_cli:main"

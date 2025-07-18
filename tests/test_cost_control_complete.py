@@ -15,7 +15,7 @@ from pathlib import Path
 # Setup path per import
 sys.path.append(str(Path(__file__).parent.parent))
 
-from tools.cost_control_framework import CostControlManager, BudgetStatus
+from cbt_journal.utils.cost_control import CostControlManager, BudgetStatus
 
 class CostControlTestSuite:
     """Test suite completo per Cost Control"""
@@ -360,7 +360,7 @@ class CostControlTestSuite:
         print("="*60)
         
         try:
-            from tools.cost_control_cli import CostControlCLI
+            from cbt_journal.utils.cost_cli import CostControlCLI
             
             # Inizializza CLI con nostro cost manager
             cli = CostControlCLI()
