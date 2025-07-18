@@ -10,12 +10,11 @@ import random
 import time
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
+
+import pytest
+
 from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, FieldCondition, Range
-
-
-# ===================== PYTEST REFACTORING =====================
-import pytest
 
 # ---- Fixtures ----
 @pytest.fixture(scope="module")

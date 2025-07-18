@@ -14,6 +14,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
+import pytest
+
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -21,11 +23,6 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams, Distance, PointStruct
 from cbt_journal.rag.vector_store import CBTVectorStore, CBTVectorStoreError, create_vector_store
 from cbt_journal.utils.cost_control import CostControlManager
-
-
-
-# ===================== PYTEST REFACTORING =====================
-import pytest
 
 # ---- Fixtures ----
 
