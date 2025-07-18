@@ -528,12 +528,18 @@ class CBTVectorStoreTestSuite:
                 mock_client_instance = Mock()
                 mock_qdrant_class.return_value = mock_client_instance
                 
-                # Mock successful verification
+                # Mock successful verification for test_collection
+                mock_collection = Mock()
+                mock_collection.name = "test_collection"
                 mock_collections = Mock()
-                mock_collections.collections = [Mock(name="cbt_journal_sessions")]
+                mock_collections.collections = [mock_collection]
                 mock_client_instance.get_collections.return_value = mock_collections
                 
+                # Mock collection info
                 mock_info = Mock()
+                mock_info.config = Mock()
+                mock_info.config.params = Mock()
+                mock_info.config.params.vectors = Mock()
                 mock_info.config.params.vectors.size = 3072
                 mock_client_instance.get_collection.return_value = mock_info
                 
