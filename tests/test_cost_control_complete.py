@@ -28,8 +28,8 @@ class CostControlTestSuite:
         # Inizializza con limiti test più bassi
         os.environ["MAX_COST_PER_SESSION"] = "0.10"  # $0.10 per session
         os.environ["MAX_DAILY_COST"] = "1.00"        # $1.00 per day
-        os.environ["MAX_MONTHLY_COST"] = "20.00"     # $20.00 per month
-        
+        os.environ["MAX_MONTHLY_COST"] = "10.00"     # $10.00 per month
+
         self.cost_manager = CostControlManager(self.db_path)
         
         print(f"🧪 Test environment initialized")
