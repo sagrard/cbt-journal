@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Test Completi per Qdrant Setup v3.3.0
-Validazione funzionamento CBT Journal collection
+Complete Tests for Qdrant Setup v3.3.0
+Validation of CBT Journal collection functionality
 """
 
 import json
@@ -43,13 +43,13 @@ def generate_realistic_session(session_id: str, session_type: str = "emotional_p
             "messages": [
                 {
                     "role": "user",
-                    "content": f"Sessione {session_type} di test con contenuto emotivo significativo",
+                    "content": f"Test {session_type} session with significant emotional content",
                     "timestamp": datetime.now().isoformat(),
                     "word_count": 9
                 },
                 {
                     "role": "assistant",
-                    "content": "Comprendo i tuoi sentimenti, esploriamo insieme questa esperienza emotiva",
+                    "content": "I understand your feelings, let's explore this emotional experience together",
                     "timestamp": datetime.now().isoformat(),
                     "word_count": 10
                 }
@@ -86,7 +86,7 @@ def generate_realistic_session(session_id: str, session_type: str = "emotional_p
         },
         "rag_metadata": {
             "context_type": random.choice(["narrative", "clinical", "outcome", "chat"]),
-            "language": "it",
+            "language": "en",
             "context_priority": random.randint(1, 5),
             "token_count": random.randint(150, 1200),
             "embedding_version": "text-embedding-3-large"
@@ -134,7 +134,7 @@ def generate_realistic_session(session_id: str, session_type: str = "emotional_p
 
 # ---- Test functions ----
 def test_bulk_insert_performance(qdrant_client, collection_name, test_points):
-    """Test performance insert multiple sessioni"""
+    """Test performance of bulk inserting multiple sessions"""
     num_sessions = 20
     session_types = ["emotional_processing", "problem_solving", "reflection", "crisis_support", "general"]
     points = []
@@ -152,7 +152,7 @@ def test_bulk_insert_performance(qdrant_client, collection_name, test_points):
 
 # ---- Test: Complex Filtering ----
 def test_complex_filtering(qdrant_client, collection_name):
-    """Test filtering complessi per RAG use cases"""
+    """Test complex filtering for RAG use cases"""
     # Test 1: Multi-field clinical filter
     clinical_filter = Filter(
         must=[
@@ -173,7 +173,7 @@ def test_complex_filtering(qdrant_client, collection_name):
     # Test 2: RAG context filter
     rag_filter = Filter(
         must=[
-            FieldCondition(key="rag_metadata.language", match={"value": "it"}),
+            FieldCondition(key="rag_metadata.language", match={"value": "en"}),
             FieldCondition(key="rag_metadata.context_type", match={"value": "narrative"}),
             FieldCondition(key="rag_metadata.context_priority", range=Range(gte=3))
         ]
@@ -219,12 +219,12 @@ def test_complex_filtering(qdrant_client, collection_name):
 
 # ---- Test: Semantic Search Quality ----
 def test_semantic_search_quality(qdrant_client, collection_name, test_points):
-    """Test qualità ricerca semantica"""
+    """Test semantic search quality"""
     semantic_sessions = [
-        ("anxiety_work", "Mi sento molto ansioso per il progetto lavorativo", ["anxiety", "work"]),
-        ("anxiety_relationship", "L'ansia mi sta rovinando la relazione", ["anxiety", "relationships"]),
-        ("depression_general", "Oggi mi sento particolarmente triste e demotivato", ["depression"]),
-        ("stress_family", "La situazione familiare mi sta stressando molto", ["stress", "family"])
+        ("anxiety_work", "I feel very anxious about the work project", ["anxiety", "work"]),
+        ("anxiety_relationship", "Anxiety is ruining my relationship", ["anxiety", "relationships"]),
+        ("depression_general", "Today I feel particularly sad and unmotivated", ["depression"]),
+        ("stress_family", "The family situation is stressing me a lot", ["stress", "family"])
     ]
     semantic_points = []
     semantic_vectors = {}
@@ -268,7 +268,7 @@ def test_semantic_search_quality(qdrant_client, collection_name, test_points):
 
 # ---- Test: Concurrent Operations ----
 def test_concurrent_operations(qdrant_client, collection_name):
-    """Test operazioni concorrenti"""
+    """Test concurrent operations"""
     import concurrent.futures
 
     def concurrent_search(thread_id: int) -> str:
@@ -287,7 +287,7 @@ def test_concurrent_operations(qdrant_client, collection_name):
         try:
             filter_condition = Filter(
                 must=[
-                    FieldCondition(key="rag_metadata.language", match={"value": "it"})
+                    FieldCondition(key="rag_metadata.language", match={"value": "en"})
                 ]
             )
             query_vector = [random.random() for _ in range(3072)]
@@ -315,7 +315,7 @@ def test_concurrent_operations(qdrant_client, collection_name):
 
 # ---- Test: Stress Performance ----
 def test_stress_performance(qdrant_client, collection_name):
-    """Test performance sotto stress"""
+    """Test performance under stress"""
     query_vector = [random.random() for _ in range(3072)]
     start_time = time.time()
     for _ in range(50):
@@ -329,7 +329,7 @@ def test_stress_performance(qdrant_client, collection_name):
     complex_filter = Filter(
         must=[
             FieldCondition(key="clinical_assessment.mood_rating", range=Range(gte=3)),
-            FieldCondition(key="rag_metadata.language", match={"value": "it"}),
+            FieldCondition(key="rag_metadata.language", match={"value": "en"}),
             FieldCondition(key="cost_monitoring.session_budget.budget_status", match={"value": "within_limits"})
         ]
     )
@@ -348,7 +348,7 @@ def test_stress_performance(qdrant_client, collection_name):
     assert isinstance(avg_complex_time, float)
     
 def test_error_handling(qdrant_client, collection_name, test_points):
-    """Test error handling per scenari problematici"""
+    """Test error handling for problematic scenarios"""
     # Test 1: Invalid vector dimensions
     invalid_point = PointStruct(
         id=str(uuid.uuid4()),
@@ -377,7 +377,7 @@ def test_error_handling(qdrant_client, collection_name, test_points):
     assert isinstance(results.points, list)
 
 def test_data_consistency(qdrant_client, collection_name, test_points):
-    """Test consistenza dati dopo operazioni multiple"""
+    """Test data consistency after multiple operations"""
     # Insert test data
     points = []
     for i in range(5):
@@ -404,7 +404,7 @@ def test_data_consistency(qdrant_client, collection_name, test_points):
         assert retrieved[0].payload["session_id"] == point.payload["session_id"]
 
 def test_schema_validation(qdrant_client, collection_name, test_points):
-    """Test validazione schema v3.3.0"""
+    """Test schema v3.3.0 validation"""
     # Test with complete schema
     complete_session = generate_realistic_session("schema_test_complete")
     vector = [random.random() for _ in range(3072)]
@@ -433,7 +433,7 @@ def test_schema_validation(qdrant_client, collection_name, test_points):
     assert payload["system_metadata"]["schema_version"] == "3.3.0"
 
 def test_large_payload_handling(qdrant_client, collection_name, test_points):
-    """Test handling di payload grandi"""
+    """Test handling of large payloads"""
     # Create large session with many messages
     large_session = generate_realistic_session("large_payload_test")
     large_session["content"]["messages"] = []
@@ -442,7 +442,7 @@ def test_large_payload_handling(qdrant_client, collection_name, test_points):
     for i in range(50):
         large_session["content"]["messages"].append({
             "role": "user" if i % 2 == 0 else "assistant",
-            "content": f"Message {i} con contenuto molto lungo " * 10,
+            "content": f"Message {i} with very long content " * 10,
             "timestamp": datetime.now().isoformat(),
             "word_count": 80
         })

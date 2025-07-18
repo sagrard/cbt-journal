@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Test Suite Completo per Cost Control Framework
-Verifica tutte le funzionalità con scenari realistici CBT
+Complete Test Suite for Cost Control Framework
+Verifies all functionalities with realistic CBT scenarios
 """
 
 import os
@@ -17,7 +17,7 @@ from contextlib import closing
 
 import pytest
 
-# Setup path per import
+# Setup path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
 from cbt_journal.utils.cost_control import CostControlManager, BudgetStatus
@@ -51,7 +51,7 @@ def cost_manager(db_path):
 # ---- Test Functions ----
 
 def test_edge_cases(cost_manager):
-    """Verifica la gestione di casi limite di token"""
+    """Test handling of edge cases for token limits"""
     edge_cases = [
         {"name": "Zero tokens", "tokens_input": 0, "tokens_output": 0, "should_work": True},
         {"name": "Very large input", "tokens_input": 100000, "tokens_output": 10000, "should_work": True},
@@ -71,14 +71,14 @@ def test_edge_cases(cost_manager):
                 tokens_output=case['tokens_output'],
                 model="gpt-4o-2024-11-20"
             )
-            # Se should_work è True, non deve sollevare eccezioni
-            assert allowed is not None  # Deve restituire un booleano
+            # If should_work is True, should not raise exceptions
+            assert allowed is not None  # Must return a boolean
         except Exception as e:
-            assert not case['should_work'], f"Edge case fallito: {case['name']} - {e}"
+            assert not case['should_work'], f"Edge case failed: {case['name']} - {e}"
 
 
 def test_data_persistence(cost_manager, db_path):
-    """Verifica che i dati di costo siano persistenti tra istanze del manager"""
+    """Test that cost data is persistent between manager instances"""
     test_session = "persistence_test"
     test_cases = [
         {
@@ -117,12 +117,12 @@ def test_data_persistence(cost_manager, db_path):
             case["model"]
         )
         min_expected, max_expected = case["expected_range"]
-        assert min_expected <= cost <= max_expected, f"{case['name']} fuori range: {cost}"
+        assert min_expected <= cost <= max_expected, f"{case['name']} out of range: {cost}"
 
 
 def test_cost_spike_detection(cost_manager):
-    """Verifica che la rilevazione di spike di costo funzioni correttamente"""
-    # Simula costi storici (baseline)
+    """Test that cost spike detection works correctly"""
+    # Simulate historical costs (baseline)
     baseline_cost = 0.015
     with closing(sqlite3.connect(cost_manager.db_path)) as conn:
         for days_ago in range(7, 1, -1):
@@ -142,7 +142,7 @@ def test_cost_spike_detection(cost_manager):
                 )
         conn.commit()
     
-    # Sessione normale: non deve triggerare spike
+    # Normal session: should not trigger spike
     allowed, result = cost_manager.pre_api_check(
         session_id="spike_test_normal",
         tokens_input=1500,
@@ -150,9 +150,9 @@ def test_cost_spike_detection(cost_manager):
         model="gpt-4o-2024-11-20"
     )
     normal_spike = result['cost_alerts']['unusual_cost_spike']
-    assert not normal_spike, "La sessione normale non deve triggerare spike"
+    assert not normal_spike, "Normal session should not trigger spike"
     
-    # Sessione anomala: deve triggerare spike
+    # Anomalous session: should trigger spike
     allowed2, result2 = cost_manager.pre_api_check(
         session_id="spike_test_anomaly",
         tokens_input=15000,
@@ -160,11 +160,11 @@ def test_cost_spike_detection(cost_manager):
         model="gpt-4o-2024-11-20"
     )
     anomaly_spike = result2['cost_alerts']['unusual_cost_spike']
-    assert anomaly_spike, "La sessione anomala deve triggerare spike"
+    assert anomaly_spike, "Anomalous session should trigger spike"
 
 
 def test_daily_budget_control(cost_manager):
-    """Verifica che il controllo del budget giornaliero funzioni correttamente"""
+    """Test that daily budget control works correctly"""
     session_costs = []
     blocked = False
     for i in range(5):
@@ -195,20 +195,20 @@ def test_daily_budget_control(cost_manager):
             session_costs.append(cost)
         else:
             blocked = True
-            # Deve bloccare prima di superare il limite
+            # Should block before exceeding the limit
             assert daily_status == BudgetStatus.OVER_BUDGET or not allowed
             break
     
     total_cost = sum(session_costs)
-    # Il totale non deve mai superare il daily limit
-    assert total_cost < cost_manager.max_daily_cost, "Il costo totale non deve superare il daily budget"
-    # Se il totale si avvicina molto al limite, almeno una sessione deve essere bloccata; se invece tutte le sessioni sono piccole, nessuna viene bloccata
+    # Total should never exceed daily limit
+    assert total_cost < cost_manager.max_daily_cost, "Total cost should not exceed daily budget"
+    # If total approaches limit closely, at least one session should be blocked; if all sessions are small, none are blocked
     if total_cost > (cost_manager.max_daily_cost * 0.95):
-        assert blocked, "Almeno una sessione deve essere bloccata dal controllo giornaliero"
+        assert blocked, "At least one session should be blocked by daily control"
 
 
 def test_cost_estimation(cost_manager):
-    """Test stima costi per diversi modelli"""
+    """Test cost estimation for different models"""
     test_cases = [
         {
             "name": "Light CBT response",
@@ -246,14 +246,14 @@ def test_cost_estimation(cost_manager):
             case["model"]
         )
         min_expected, max_expected = case["expected_range"]
-        assert min_expected <= cost <= max_expected, f"{case['name']} fuori range: {cost}"
+        assert min_expected <= cost <= max_expected, f"{case['name']} out of range: {cost}"
 
 
 def test_session_budget_control(cost_manager):
-    """Verifica che il controllo del budget di sessione funzioni correttamente"""
+    """Test that session budget control works correctly"""
     session_id = str(uuid.uuid4())
 
-    # Caso normale: entro il budget
+    # Normal case: within budget
     allowed, result = cost_manager.pre_api_check(
         session_id=session_id,
         tokens_input=1000,
@@ -262,10 +262,10 @@ def test_session_budget_control(cost_manager):
     )
     cost1 = result['estimated_cost']
     status1 = result['session_budget']['budget_status']
-    assert allowed, "La sessione normale dovrebbe essere permessa"
-    assert status1 == BudgetStatus.WITHIN_LIMITS, f"Stato inatteso: {status1}"
+    assert allowed, "Normal session should be allowed"
+    assert status1 == BudgetStatus.WITHIN_LIMITS, f"Unexpected status: {status1}"
 
-    # Registra il costo
+    # Record the cost
     cost_manager.record_api_cost(
         session_id=session_id,
         api_type="chat_completion",
@@ -277,7 +277,7 @@ def test_session_budget_control(cost_manager):
         purpose="test_normal"
     )
 
-    # Caso over budget: deve essere bloccato
+    # Over budget case: should be blocked
     allowed2, result2 = cost_manager.pre_api_check(
         session_id=session_id,
         tokens_input=15000,
@@ -285,12 +285,12 @@ def test_session_budget_control(cost_manager):
         model="gpt-4o-2024-11-20"
     )
     status2 = result2['session_budget']['budget_status']
-    assert not allowed2, "La sessione over budget dovrebbe essere bloccata"
-    assert status2 == BudgetStatus.OVER_BUDGET, f"Stato inatteso: {status2}"
+    assert not allowed2, "Over budget session should be blocked"
+    assert status2 == BudgetStatus.OVER_BUDGET, f"Unexpected status: {status2}"
 
 
 def test_monthly_budget_control(cost_manager):
-    """Test controllo budget mensile"""
+    """Test monthly budget control"""
     # Test normal monthly cost
     session_id = str(uuid.uuid4())
     allowed, result = cost_manager.pre_api_check(
@@ -316,7 +316,7 @@ def test_monthly_budget_control(cost_manager):
 
 
 def test_optimization_suggestions(cost_manager):
-    """Test generazione suggerimenti ottimizzazione"""
+    """Test optimization suggestions generation"""
     # High cost session should generate suggestions
     session_id = str(uuid.uuid4())
     allowed, result = cost_manager.pre_api_check(
@@ -335,7 +335,7 @@ def test_optimization_suggestions(cost_manager):
 
 
 def test_cost_alerts_generation(cost_manager):
-    """Test generazione alerts per costi"""
+    """Test cost alerts generation"""
     # Test alert for high session cost
     session_id = str(uuid.uuid4())
     
@@ -364,7 +364,7 @@ def test_cost_alerts_generation(cost_manager):
 
 
 def test_database_schema_integrity(cost_manager):
-    """Test integrità schema database"""
+    """Test database schema integrity"""
     # Test that all required tables exist
     with closing(sqlite3.connect(cost_manager.db_path)) as conn:
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
@@ -383,7 +383,7 @@ def test_database_schema_integrity(cost_manager):
 
 
 def test_cost_summary_functionality(cost_manager):
-    """Test funzionalità cost summary"""
+    """Test cost summary functionality"""
     # Add some test costs
     session_id = str(uuid.uuid4())
     test_cost = 0.05
@@ -414,7 +414,7 @@ def test_cost_summary_functionality(cost_manager):
 
 
 def test_concurrent_session_handling(cost_manager):
-    """Test handling di sessioni concorrenti"""
+    """Test handling of concurrent sessions"""
     results = []
     
     def create_session(session_id):
@@ -458,7 +458,7 @@ def test_concurrent_session_handling(cost_manager):
 
 
 def test_invalid_model_handling(cost_manager):
-    """Test handling di modelli non supportati"""
+    """Test handling of unsupported models"""
     session_id = str(uuid.uuid4())
     
     # Test with unknown model - should use default pricing
@@ -475,7 +475,7 @@ def test_invalid_model_handling(cost_manager):
 
 
 def test_zero_cost_handling(cost_manager):
-    """Test handling di costi zero"""
+    """Test handling of zero costs"""
     session_id = str(uuid.uuid4())
     
     # Test with zero tokens

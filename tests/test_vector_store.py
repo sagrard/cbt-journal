@@ -66,7 +66,7 @@ def vector_store(mock_client, cost_manager, collection_name):
         collection_name=collection_name
     )
 
-# ---- Helper functions ----
+# ---- Helper Functions ----
 
 def create_test_session(session_id: str = None):
     if session_id is None:
@@ -101,7 +101,7 @@ def create_test_session(session_id: str = None):
 def create_test_embedding():
     return [random.random() for _ in range(3072)]
 
-# ---- Test functions ----
+# ---- Test Functions ----
 
 def test_initialization(mock_client, cost_manager, collection_name):
     # Should succeed
@@ -294,7 +294,7 @@ def test_error_handling_connection_error(mock_client, cost_manager):
         )
 
 def test_error_handling_upsert_failure(collection_name, cost_manager):
-    # Nuovo mock_client per isolamento
+    # New mock_client for isolation
     client = Mock(spec=QdrantClient)
     # Collection exists
     mock_collection = Mock()
