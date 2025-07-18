@@ -7,7 +7,7 @@ services:
       - "6333:6333"  # REST API
       - "6334:6334"  # gRPC API (optional)
     volumes:
-      - ./qdrant_data:/qdrant/storage
+      - qdrant_data:/qdrant/storage
     environment:
       # PRIVACY: Disabilita usage statistics (non monitoring locale)
       - QDRANT__TELEMETRY_DISABLED=true
@@ -20,3 +20,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+volumes:
+  qdrant_data:
