@@ -275,3 +275,216 @@ def test_session_budget_control(cost_manager):
     assert status2 == BudgetStatus.OVER_BUDGET, f"Stato inatteso: {status2}"
 
     # Niente chiusura forzata qui: la fixture e contextlib.closing nei test garantiscono la chiusura
+
+def test_monthly_budget_control(cost_manager):
+    """Test controllo budget mensile"""
+    import uuid
+    from datetime import datetime, date
+    
+    # Test normal monthly cost
+    session_id = str(uuid.uuid4())
+    allowed, result = cost_manager.pre_api_check(
+        session_id=session_id,
+        tokens_input=2000,
+        tokens_output=800,
+        model="gpt-4o-2024-11-20"
+    )
+    assert allowed, "Normal monthly cost should be allowed"
+    assert result['monthly_tracking']['monthly_budget_status'].value in ['healthy', 'warning']
+    
+    # Record the cost
+    cost_manager.record_api_cost(
+        session_id=session_id,
+        api_type="chat_completion",
+        model="gpt-4o-2024-11-20",
+        provider="openai",
+        tokens_input=2000,
+        tokens_output=800,
+        actual_cost=result['estimated_cost'],
+        purpose="monthly_test"
+    )
+
+def test_optimization_suggestions(cost_manager):
+    """Test generazione suggerimenti ottimizzazione"""
+    import uuid
+    
+    # High cost session should generate suggestions
+    session_id = str(uuid.uuid4())
+    allowed, result = cost_manager.pre_api_check(
+        session_id=session_id,
+        tokens_input=5000,
+        tokens_output=2000,
+        model="gpt-4o-2024-11-20"
+    )
+    
+    suggestions = result['optimization_suggestions']
+    assert len(suggestions) > 0, "High cost session should generate suggestions"
+    
+    # Check suggestion types
+    suggestion_types = [s['type'] for s in suggestions]
+    assert 'token_reduction' in suggestion_types, "Should suggest token reduction"
+
+def test_cost_alerts_generation(cost_manager):
+    """Test generazione alerts per costi"""
+    import uuid
+    
+    # Test alert for high session cost
+    session_id = str(uuid.uuid4())
+    
+    # First, add some cost to the session
+    cost_manager.record_api_cost(
+        session_id=session_id,
+        api_type="chat_completion",
+        model="gpt-4o-2024-11-20",
+        provider="openai",
+        tokens_input=1000,
+        tokens_output=500,
+        actual_cost=0.08,
+        purpose="alert_test"
+    )
+    
+    # Now try to add more cost that would exceed budget
+    allowed, result = cost_manager.pre_api_check(
+        session_id=session_id,
+        tokens_input=5000,
+        tokens_output=2000,
+        model="gpt-4o-2024-11-20"
+    )
+    
+    alerts = result['cost_alerts']
+    assert alerts['session_over_budget'] == (not allowed), "Session over budget alert should match allowed status"
+
+def test_database_schema_integrity(cost_manager):
+    """Test integrità schema database"""
+    import sqlite3
+    from contextlib import closing
+    
+    # Test that all required tables exist
+    with closing(sqlite3.connect(cost_manager.db_path)) as conn:
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = [row[0] for row in cursor.fetchall()]
+        
+        required_tables = ['api_costs', 'budget_tracking', 'cost_alerts']
+        for table in required_tables:
+            assert table in tables, f"Required table {table} not found"
+        
+        # Test api_costs table structure
+        cursor = conn.execute("PRAGMA table_info(api_costs)")
+        columns = [row[1] for row in cursor.fetchall()]
+        required_columns = ['session_id', 'timestamp', 'api_type', 'model', 'provider', 'tokens_input', 'tokens_output', 'cost_usd']
+        for col in required_columns:
+            assert col in columns, f"Required column {col} not found in api_costs"
+
+def test_cost_summary_functionality(cost_manager):
+    """Test funzionalità cost summary"""
+    import uuid
+    
+    # Add some test costs
+    session_id = str(uuid.uuid4())
+    test_cost = 0.05
+    
+    cost_manager.record_api_cost(
+        session_id=session_id,
+        api_type="chat_completion",
+        model="gpt-4o-2024-11-20",
+        provider="openai",
+        tokens_input=1000,
+        tokens_output=500,
+        actual_cost=test_cost,
+        purpose="summary_test"
+    )
+    
+    # Test today summary
+    today_summary = cost_manager.get_cost_summary("today")
+    assert today_summary['period'] == "today"
+    assert today_summary['total_cost'] >= test_cost
+    assert 'budget_limit' in today_summary
+    assert 'utilization' in today_summary
+    
+    # Test month summary  
+    month_summary = cost_manager.get_cost_summary("month")
+    assert month_summary['total_cost'] >= test_cost
+    assert 'budget_limit' in month_summary
+    assert 'utilization' in month_summary
+
+def test_concurrent_session_handling(cost_manager):
+    """Test handling di sessioni concorrenti"""
+    import uuid
+    import threading
+    import time
+    
+    results = []
+    
+    def create_session(session_id):
+        try:
+            allowed, result = cost_manager.pre_api_check(
+                session_id=session_id,
+                tokens_input=1000,
+                tokens_output=400,
+                model="gpt-4o-2024-11-20"
+            )
+            if allowed:
+                cost_manager.record_api_cost(
+                    session_id=session_id,
+                    api_type="chat_completion",
+                    model="gpt-4o-2024-11-20",
+                    provider="openai",
+                    tokens_input=1000,
+                    tokens_output=400,
+                    actual_cost=result['estimated_cost'],
+                    purpose="concurrent_test"
+                )
+            results.append(allowed)
+        except Exception as e:
+            results.append(False)
+    
+    # Create multiple concurrent sessions
+    threads = []
+    for i in range(3):
+        session_id = f"concurrent_session_{i}"
+        thread = threading.Thread(target=create_session, args=(session_id,))
+        threads.append(thread)
+        thread.start()
+    
+    # Wait for all threads to complete
+    for thread in threads:
+        thread.join()
+    
+    # At least some sessions should be allowed
+    assert len(results) == 3
+    assert any(results), "At least one concurrent session should be allowed"
+
+def test_invalid_model_handling(cost_manager):
+    """Test handling di modelli non supportati"""
+    import uuid
+    
+    session_id = str(uuid.uuid4())
+    
+    # Test with unknown model - should use default pricing
+    allowed, result = cost_manager.pre_api_check(
+        session_id=session_id,
+        tokens_input=1000,
+        tokens_output=400,
+        model="unknown-model-xyz"
+    )
+    
+    # Should still work with default pricing
+    assert isinstance(result['estimated_cost'], float)
+    assert result['estimated_cost'] > 0
+
+def test_zero_cost_handling(cost_manager):
+    """Test handling di costi zero"""
+    import uuid
+    
+    session_id = str(uuid.uuid4())
+    
+    # Test with zero tokens
+    allowed, result = cost_manager.pre_api_check(
+        session_id=session_id,
+        tokens_input=0,
+        tokens_output=0,
+        model="gpt-4o-2024-11-20"
+    )
+    
+    assert allowed, "Zero cost should always be allowed"
+    assert result['estimated_cost'] == 0.0

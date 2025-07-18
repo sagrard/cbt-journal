@@ -348,94 +348,123 @@ def test_stress_performance(qdrant_client, collection_name):
     assert isinstance(avg_query_time, float)
     assert isinstance(avg_complex_time, float)
     
-    def cleanup_test_data(self) -> bool:
-        """Cleanup dati test"""
-        try:
-            if self.test_points:
-                print(f"\n🧹 Cleaning up {len(self.test_points)} test points...")
-                
-                # Delete in batches per evitare timeout
-                batch_size = 100
-                for i in range(0, len(self.test_points), batch_size):
-                    batch = self.test_points[i:i + batch_size]
-                    self.client.delete(
-                        collection_name=self.collection_name,
-                        points_selector=batch
-                    )
-                
-                print("✅ Test data cleanup completed")
-                self.test_points = []
-            
-            return True
-            
-        except Exception as e:
-            print(f"❌ Cleanup failed: {str(e)}")
-            return False
+def test_error_handling(qdrant_client, collection_name, test_points):
+    """Test error handling per scenari problematici"""
+    # Test 1: Invalid vector dimensions
+    invalid_point = PointStruct(
+        id=str(uuid.uuid4()),
+        vector=[0.5, 0.5],  # Wrong dimension
+        payload={"test": "invalid_vector"}
+    )
     
-    def get_final_stats(self) -> Dict[str, Any]:
-        """Statistiche finali collection"""
-        try:
-            info = self.client.get_collection(self.collection_name)
-            
-            return {
-                "collection_name": self.collection_name,
-                "status": str(info.status),
-                "points_count": info.points_count,
-                "vectors_count": info.vectors_count,
-                "schema_version": "3.3.0",
-                "test_status": "PASSED"
-            }
-            
-        except Exception as e:
-            return {"error": str(e), "test_status": "FAILED"}
+    with pytest.raises(Exception):
+        qdrant_client.upsert(collection_name=collection_name, points=[invalid_point])
     
-    def run_comprehensive_tests(self) -> bool:
-        """Esegui tutti i test completi"""
-        print("=" * 80)
-        print("CBT JOURNAL - COMPREHENSIVE QDRANT TESTS")
-        print("=" * 80)
-        
-        all_tests_passed = True
-        
-        # Test 1: Bulk insert performance
-        if not self.test_bulk_insert_performance():
-            all_tests_passed = False
-        
-        # Test 2: Complex filtering
-        if not self.test_complex_filtering():
-            all_tests_passed = False
-        
-        # Test 3: Semantic search quality  
-        if not self.test_semantic_search_quality():
-            all_tests_passed = False
-        
-        # Test 4: Concurrent operations
-        if not self.test_concurrent_operations():
-            all_tests_passed = False
-        
-        # Test 5: Stress performance
-        if not self.test_stress_performance():
-            all_tests_passed = False
-        
-        # Cleanup
-        self.cleanup_test_data()
-        
-        # Final stats
-        stats = self.get_final_stats()
-        print(f"\n📊 FINAL COLLECTION STATS:")
-        print(json.dumps(stats, indent=2, ensure_ascii=False))
-        
-        print("\n" + "=" * 80)
-        if all_tests_passed:
-            print("🎉 ALL COMPREHENSIVE TESTS PASSED!")
-            print("✅ Sistema Qdrant completamente validato e pronto per produzione")
-            print("✅ Performance ottimali per CBT Journal workload")
-            print("✅ Schema v3.3.0 completamente funzionale")
-            print("\n🚀 READY FOR WEEK 2: RAG Pipeline Core Development")
-        else:
-            print("❌ SOME TESTS FAILED!")
-            print("⚠️ Revisione e troubleshooting necessari prima di procedere")
-        print("=" * 80)
-        
-        return all_tests_passed
+    # Test 2: Query with invalid filter
+    query_vector = [random.random() for _ in range(3072)]
+    invalid_filter = Filter(
+        must=[
+            FieldCondition(key="non_existent_field", match={"value": "test"})
+        ]
+    )
+    
+    # Should not crash but return empty results
+    results = qdrant_client.query_points(
+        collection_name=collection_name,
+        query=query_vector,
+        query_filter=invalid_filter,
+        limit=5
+    )
+    assert isinstance(results.points, list)
+
+def test_data_consistency(qdrant_client, collection_name, test_points):
+    """Test consistenza dati dopo operazioni multiple"""
+    # Insert test data
+    points = []
+    for i in range(5):
+        session_id = f"consistency_test_{i}"
+        vector = [random.random() for _ in range(3072)]
+        payload = generate_realistic_session(session_id)
+        point_id = str(uuid.uuid4())
+        test_points.append(point_id)
+        points.append(PointStruct(id=point_id, vector=vector, payload=payload))
+    
+    # Insert points
+    result = qdrant_client.upsert(collection_name=collection_name, points=points)
+    assert result.status.name == "COMPLETED"
+    
+    # Verify all points are retrievable
+    for point in points:
+        retrieved = qdrant_client.retrieve(
+            collection_name=collection_name,
+            ids=[point.id],
+            with_payload=True
+        )
+        assert len(retrieved) == 1
+        assert retrieved[0].id == point.id
+        assert retrieved[0].payload["session_id"] == point.payload["session_id"]
+
+def test_schema_validation(qdrant_client, collection_name, test_points):
+    """Test validazione schema v3.3.0"""
+    # Test with complete schema
+    complete_session = generate_realistic_session("schema_test_complete")
+    vector = [random.random() for _ in range(3072)]
+    point_id = str(uuid.uuid4())
+    test_points.append(point_id)
+    
+    point = PointStruct(id=point_id, vector=vector, payload=complete_session)
+    result = qdrant_client.upsert(collection_name=collection_name, points=[point])
+    assert result.status.name == "COMPLETED"
+    
+    # Verify required fields are present
+    retrieved = qdrant_client.retrieve(
+        collection_name=collection_name,
+        ids=[point_id],
+        with_payload=True
+    )
+    payload = retrieved[0].payload
+    
+    # Check required schema fields
+    assert "session_id" in payload
+    assert "timestamp" in payload
+    assert "data_source" in payload
+    assert "content" in payload
+    assert "ai_models" in payload
+    assert "system_metadata" in payload
+    assert payload["system_metadata"]["schema_version"] == "3.3.0"
+
+def test_large_payload_handling(qdrant_client, collection_name, test_points):
+    """Test handling di payload grandi"""
+    # Create large session with many messages
+    large_session = generate_realistic_session("large_payload_test")
+    large_session["content"]["messages"] = []
+    
+    # Add many messages to simulate long conversation
+    for i in range(50):
+        large_session["content"]["messages"].append({
+            "role": "user" if i % 2 == 0 else "assistant",
+            "content": f"Message {i} con contenuto molto lungo " * 10,
+            "timestamp": datetime.now().isoformat(),
+            "word_count": 80
+        })
+    
+    large_session["content"]["conversation_count"] = 50
+    large_session["content"]["total_words"]["total"] = 4000
+    
+    vector = [random.random() for _ in range(3072)]
+    point_id = str(uuid.uuid4())
+    test_points.append(point_id)
+    
+    point = PointStruct(id=point_id, vector=vector, payload=large_session)
+    result = qdrant_client.upsert(collection_name=collection_name, points=[point])
+    assert result.status.name == "COMPLETED"
+    
+    # Verify retrieval works with large payload
+    retrieved = qdrant_client.retrieve(
+        collection_name=collection_name,
+        ids=[point_id],
+        with_payload=True
+    )
+    assert len(retrieved) == 1
+    assert len(retrieved[0].payload["content"]["messages"]) == 50
 

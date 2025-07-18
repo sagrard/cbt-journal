@@ -325,3 +325,163 @@ def test_error_handling_upsert_failure(collection_name, cost_manager):
         session_data = create_test_session()
         embedding = create_test_embedding()
         vector_store.store_session(session_data, embedding)
+
+def test_search_with_score_threshold(vector_store, mock_client):
+    # Test search with score threshold
+    mock_point = Mock()
+    mock_point.id = "high_score_session"
+    mock_point.score = 0.9
+    mock_point.payload = create_test_session("high_score_session")
+    mock_results = Mock()
+    mock_results.points = [mock_point]
+    mock_client.query_points.return_value = mock_results
+    
+    query_embedding = create_test_embedding()
+    results = vector_store.search_similar(query_embedding, score_threshold=0.8, limit=5)
+    assert len(results) == 1
+    assert results[0]["score"] == 0.9
+    
+    # Verify score threshold was passed to client
+    mock_client.query_points.assert_called_once()
+    call_args = mock_client.query_points.call_args
+    assert call_args[1]["score_threshold"] == 0.8
+
+def test_search_with_complex_range_filters(vector_store, mock_client):
+    # Test search with range filters
+    mock_point = Mock()
+    mock_point.id = "range_filtered_session"
+    mock_point.score = 0.85
+    mock_point.payload = create_test_session("range_filtered_session")
+    mock_results = Mock()
+    mock_results.points = [mock_point]
+    mock_client.query_points.return_value = mock_results
+    
+    query_embedding = create_test_embedding()
+    filters = {
+        'duration_minutes': {'range': {'gte': 10, 'lte': 60}},
+        'clinical_assessment.mood_rating': {'range': {'gte': 5}}
+    }
+    results = vector_store.search_similar(query_embedding, filters=filters, limit=10)
+    assert len(results) == 1
+    assert results[0]["session_id"] == "range_filtered_session"
+
+def test_update_session_with_new_embedding(vector_store, mock_client):
+    # Test updating session with new embedding
+    session_id = "test_update_embedding"
+    existing_session = create_test_session(session_id)
+    mock_point = Mock()
+    mock_point.id = session_id
+    mock_point.payload = existing_session
+    mock_client.retrieve.return_value = [mock_point]
+    
+    mock_result = Mock()
+    mock_result.status.name = "COMPLETED"
+    mock_client.upsert.return_value = mock_result
+    
+    updates = {'duration_minutes': 45}
+    new_embedding = create_test_embedding()
+    
+    result = vector_store.update_session(session_id, updates, new_embedding)
+    assert result is True
+    
+    # Verify upsert was called with new embedding
+    mock_client.upsert.assert_called_once()
+    call_args = mock_client.upsert.call_args
+    upserted_point = call_args[1]["points"][0]
+    assert upserted_point.vector == new_embedding
+
+def test_search_by_filters_with_different_types(vector_store, mock_client):
+    # Test search by filters with different data types
+    mock_point = Mock()
+    mock_point.id = "mixed_filters_session"
+    mock_point.payload = create_test_session("mixed_filters_session")
+    mock_client.scroll.return_value = ([mock_point], None)
+    
+    filters = {
+        'data_source': 'local_system',  # string
+        'duration_minutes': 30,         # int
+        'clinical_assessment.mood_rating': {'range': {'gte': 5, 'lte': 8}}  # range
+    }
+    
+    results = vector_store.search_by_filters(filters, limit=10)
+    assert len(results) == 1
+    assert results[0]["session_id"] == "mixed_filters_session"
+
+def test_collection_stats_with_config(vector_store, mock_client):
+    # Test collection stats including config details
+    mock_info = Mock()
+    mock_info.status = "green"
+    mock_info.points_count = 100
+    mock_info.vectors_count = 100
+    mock_info.config = Mock()
+    mock_info.config.params = Mock()
+    mock_info.config.params.vectors = Mock()
+    mock_info.config.params.vectors.size = 3072
+    mock_info.config.params.vectors.distance = Distance.COSINE
+    mock_client.get_collection.return_value = mock_info
+    
+    stats = vector_store.get_collection_stats()
+    assert stats["points_count"] == 100
+    assert stats["schema_version"] == "3.3.0"
+    assert "config" in stats
+    assert stats["config"]["vector_size"] == 3072
+    assert "Cosine" in stats["config"]["distance"]
+
+def test_health_check_complete_success(vector_store, mock_client, collection_name):
+    # Test health check with all checks successful
+    mock_collections = Mock()
+    mock_collection_obj = Mock()
+    mock_collection_obj.name = collection_name
+    mock_collections.collections = [mock_collection_obj]
+    mock_client.get_collections.return_value = mock_collections
+    
+    mock_info = Mock()
+    mock_info.status = "green"
+    mock_info.points_count = 100
+    mock_info.vectors_count = 100
+    mock_info.config = Mock()
+    mock_info.config.params = Mock()
+    mock_info.config.params.vectors = Mock()
+    mock_info.config.params.vectors.size = 3072
+    mock_info.config.params.vectors.distance = "cosine"
+    mock_client.get_collection.return_value = mock_info
+    
+    # Mock successful scroll for index test
+    mock_client.scroll.return_value = ([Mock()], None)
+    
+    health = vector_store.health_check()
+    assert health["status"] == "healthy"
+    assert health["checks"]["collection_access"] == "ok"
+    assert health["checks"]["collection_exists"] == "ok"
+    assert health["checks"]["basic_operations"] == "ok"
+    assert health["checks"]["indexes"] == "ok"
+
+def test_store_session_with_custom_session_id(vector_store, mock_client):
+    # Test storing session with custom session ID
+    custom_session_id = "custom_session_123"
+    session_data = create_test_session()
+    embedding = create_test_embedding()
+    
+    mock_result = Mock()
+    mock_result.status.name = "COMPLETED"
+    mock_client.upsert.return_value = mock_result
+    
+    result_session_id = vector_store.store_session(session_data, embedding, custom_session_id)
+    assert result_session_id == custom_session_id
+    
+    # Verify the point was created with custom ID
+    mock_client.upsert.assert_called_once()
+    call_args = mock_client.upsert.call_args
+    upserted_point = call_args[1]["points"][0]
+    assert upserted_point.id == custom_session_id
+
+def test_search_similar_empty_results(vector_store, mock_client):
+    # Test search with no results
+    mock_results = Mock()
+    mock_results.points = []
+    mock_client.query_points.return_value = mock_results
+    
+    query_embedding = create_test_embedding()
+    results = vector_store.search_similar(query_embedding, limit=5)
+    assert len(results) == 0
+    assert isinstance(results, list)
