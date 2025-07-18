@@ -15,7 +15,7 @@ from pathlib import Path
 # Setup path per import
 sys.path.append(str(Path(__file__).parent.parent))
 
-from tools.cost_control_framework import CostControlManager, BudgetStatus, DailyBudgetStatus, MonthlyBudgetStatus
+from tools.cost_control_framework import CostControlManager, BudgetStatus
 
 class CostControlTestSuite:
     """Test suite completo per Cost Control"""
