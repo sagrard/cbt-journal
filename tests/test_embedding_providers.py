@@ -3,16 +3,15 @@
 Test suite for embedding providers
 """
 
-import asyncio
 import os
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
 
 from cbt_journal.ai.embedding_providers import (
-    EmbeddingProvider,
+    EmbeddingProviderFactory,
     EmbeddingResult,
     OpenAIEmbeddingProvider,
-    EmbeddingProviderFactory,
 )
 
 
@@ -149,9 +148,7 @@ class TestEmbeddingProviderIntegration:
     """Integration tests for embedding providers"""
 
     @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set"
-    )
+    @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     async def test_openai_provider_real_api(self) -> None:
         """Test OpenAI provider with real API (requires API key)"""
         api_key = os.getenv("OPENAI_API_KEY")
@@ -182,9 +179,7 @@ async def test_end_to_end_workflow() -> None:
         mock_openai.return_value = mock_client
 
         # Create provider through factory
-        provider = EmbeddingProviderFactory.create_provider(
-            "openai", api_key="test-key"
-        )
+        provider = EmbeddingProviderFactory.create_provider("openai", api_key="test-key")
 
         # Generate embedding
         result = await provider.embed_text("CBT session content here...")

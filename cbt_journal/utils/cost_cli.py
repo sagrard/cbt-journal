@@ -6,14 +6,15 @@ Permette testing, monitoring e gestione budget da command line
 
 import argparse
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-# Aggiungi path per import locale
-sys.path.append(str(Path(__file__).parent.parent))
+from datetime import datetime
 
 from cbt_journal.utils.cost_control import CostControlManager
+
+# Aggiungi path per import locale
+sys.path.append(str(Path(__file__).parent.parent))
 
 
 class CostControlCLI:
@@ -28,7 +29,7 @@ class CostControlCLI:
         tokens_input: int,
         tokens_output: int,
         model: str = "gpt-4o-2024-11-20",
-    ) -> None:
+    ) -> bool:
         """Comando: check budget pre-API call"""
 
         print(f"🔍 Checking budget for session: {session_id}")
@@ -209,7 +210,10 @@ class CostControlCLI:
         print(f"   Monthly budget: {monthly_pct:.2f}%")
 
     def set_limits(
-        self, session_limit: Optional[float] = None, daily_limit: Optional[float] = None, monthly_limit: Optional[float] = None
+        self,
+        session_limit: Optional[float] = None,
+        daily_limit: Optional[float] = None,
+        monthly_limit: Optional[float] = None,
     ) -> None:
         """Comando: modifica limiti budget"""
 
@@ -311,18 +315,34 @@ class CostControlCLI:
         print(f"🧪 Testing scenario: {config['description']}")
         print("-" * 50)
 
+        # Type-safe token extraction
+        tokens_input = config["tokens_input"]
+        tokens_output = config["tokens_output"]
+
+        # Convert to int if needed with proper typing
+        if isinstance(tokens_input, str):
+            tokens_input = int(tokens_input)
+        elif not isinstance(tokens_input, int):
+            tokens_input = int(str(tokens_input))
+
+        if isinstance(tokens_output, str):
+            tokens_output = int(tokens_output)
+        elif not isinstance(tokens_output, int):
+            tokens_output = int(str(tokens_output))
+
         self.check_budget(
             session_id=f"test_scenario_{scenario}",
-            tokens_input=config["tokens_input"],
-            tokens_output=config["tokens_output"],
-            model=config["model"],
+            tokens_input=tokens_input,
+            tokens_output=tokens_output,
+            model=str(config["model"]),
         )
 
     def export_data(self, output_file: str) -> None:
         """Comando: export dati per analisi"""
 
-        import sqlite3
         import csv
+
+        import sqlite3
 
         print(f"📊 Exporting cost data to: {output_file}")
 
@@ -355,7 +375,7 @@ class CostControlCLI:
                 )
 
                 # Data
-                count = 0
+                count = 0  # noqa: SIM113
                 for row in cursor:
                     writer.writerow(row)
                     count += 1
@@ -376,7 +396,8 @@ Examples:
   python cost_control_cli.py check --session test_001 --input 1000 --output 500
 
   # Record actual cost
-  python cost_control_cli.py record --session test_001 --type chat --model gpt-4o --input 1000 --output 500 --cost 0.0075
+  python cost_control_cli.py record --session test_001 --type chat --model gpt-4o \\
+    --input 1000 --output 500 --cost 0.0075
 
   # Show daily summary
   python cost_control_cli.py summary --period today
@@ -456,17 +477,19 @@ Examples:
 
     try:
         if args.command == "check":
-            allowed = cli.check_budget(args.session, args.input, args.output, args.model)
+            allowed = cli.check_budget(
+                args.session, int(args.input), int(args.output), str(args.model)
+            )
             return 0 if allowed else 1
 
         elif args.command == "record":
             cli.record_cost(
-                args.session,
-                args.type,
-                args.model,
-                args.input,
-                args.output,
-                args.cost,
+                str(args.session),
+                str(args.type),
+                str(args.model),
+                int(args.input),
+                int(args.output),
+                float(args.cost),
                 args.purpose,
             )
 
@@ -474,7 +497,7 @@ Examples:
             cli.show_summary(args.period)
 
         elif args.command == "estimate":
-            cli.estimate_cost(args.input, args.output, args.model)
+            cli.estimate_cost(int(args.input), int(args.output), str(args.model))
 
         elif args.command == "limits":
             cli.set_limits(args.session, args.daily, args.monthly)
@@ -483,7 +506,7 @@ Examples:
             cli.show_alerts()
 
         elif args.command == "test":
-            cli.test_scenario(args.scenario)
+            cli.test_scenario(str(args.scenario))
 
         elif args.command == "export":
             cli.export_data(args.output)

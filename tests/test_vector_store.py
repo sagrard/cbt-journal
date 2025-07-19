@@ -5,24 +5,24 @@ Comprehensive testing of all vector operations
 """
 
 import os
-import sys
-import uuid
-import tempfile
-import shutil
 import random
-from datetime import datetime
+import shutil
+import sys
+import tempfile
+import uuid
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+from datetime import datetime
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance
+
+from cbt_journal.rag.vector_store import CBTVectorStore, CBTVectorStoreError, create_vector_store
+from cbt_journal.utils.cost_control import CostControlManager
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
-
-from qdrant_client import QdrantClient
-from qdrant_client.models import Distance
-from cbt_journal.rag.vector_store import CBTVectorStore, CBTVectorStoreError, create_vector_store
-from cbt_journal.utils.cost_control import CostControlManager
 
 # ---- Fixtures ----
 
@@ -117,13 +117,15 @@ def test_initialization(mock_client, cost_manager, collection_name):
     # Should fail with wrong collection name
     mock_collections = Mock()
     mock_collections.collections = [Mock(name="different_collection")]
-    with patch.object(mock_client, "get_collections", return_value=mock_collections):
-        with pytest.raises(CBTVectorStoreError):
-            CBTVectorStore(
-                qdrant_client=mock_client,
-                cost_manager=cost_manager,
-                collection_name="non_existent_collection",
-            )
+    with (
+        patch.object(mock_client, "get_collections", return_value=mock_collections),
+        pytest.raises(CBTVectorStoreError),
+    ):
+        CBTVectorStore(
+            qdrant_client=mock_client,
+            cost_manager=cost_manager,
+            collection_name="non_existent_collection",
+        )
 
 
 def test_store_session(vector_store, mock_client):
@@ -201,7 +203,7 @@ def test_update_session(vector_store, mock_client):
     mock_vector_point.vector = existing_vector
 
     # Setup retrieve to return different results based on call parameters
-    def mock_retrieve(*args, **kwargs):
+    def mock_retrieve(*args, **kwargs):  # noqa: U100
         if kwargs.get("with_vectors", False):
             return [mock_vector_point]
         else:
@@ -220,7 +222,7 @@ def test_update_session(vector_store, mock_client):
     assert result is True
 
     # Non-existent session
-    mock_client.retrieve.side_effect = lambda *args, **kwargs: []
+    mock_client.retrieve.side_effect = lambda *args, **kwargs: []  # noqa: U100
     with pytest.raises(CBTVectorStoreError):
         vector_store.update_session("non_existent", updates)
 
@@ -526,7 +528,7 @@ def test_update_session_without_new_embedding(vector_store, mock_client):
     mock_vector_point.vector = existing_vector
 
     # Setup retrieve to return different results based on call parameters
-    def mock_retrieve(*args, **kwargs):
+    def mock_retrieve(*args, **kwargs):  # noqa: U100
         if kwargs.get("with_vectors", False):
             return [mock_vector_point]
         else:

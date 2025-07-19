@@ -5,16 +5,18 @@ Configurazione ottimizzata per performance con payload indexes
 """
 
 import json
-from typing import Dict, Any
+import secrets
+from typing import Any, Dict
+
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
-    VectorParams,
     Distance,
-    PointStruct,
-    Filter,
     FieldCondition,
-    Range,
+    Filter,
     PayloadSchemaType,
+    PointStruct,
+    Range,
+    VectorParams,
 )
 
 
@@ -127,12 +129,23 @@ class CBTQdrantV330Setup:
 
             # Verifica vector config
             if hasattr(info.config, "params") and info.config.params:
-                vector_config = info.config.params.vectors
-                if vector_config.size != 3072:
-                    print(f"⚠️ Warning: Vector size {vector_config.size}, expected 3072")
+                vectors_config = info.config.params.vectors
+                # Handle different vector config types
+                if hasattr(vectors_config, "size") and vectors_config is not None:
+                    vector_size = vectors_config.size  # type: ignore[union-attr]
+                    distance = vectors_config.distance  # type: ignore[union-attr]
+                elif isinstance(vectors_config, dict) and "default" in vectors_config:
+                    vector_size = vectors_config["default"].size
+                    distance = vectors_config["default"].distance
+                else:
+                    print("⚠️ Warning: Cannot determine vector config")
                     return False
-                if vector_config.distance != Distance.COSINE:
-                    print(f"⚠️ Warning: Distance {vector_config.distance}, expected COSINE")
+
+                if vector_size != 3072:
+                    print(f"⚠️ Warning: Vector size {vector_size}, expected 3072")
+                    return False
+                if distance != Distance.COSINE:
+                    print(f"⚠️ Warning: Distance {distance}, expected COSINE")
                     return False
 
             print("✅ Collection config verificata (3072 dim, COSINE)")
@@ -149,12 +162,12 @@ class CBTQdrantV330Setup:
         try:
             print("\n🧪 Testing schema v3.3.0 operations...")
 
-            import random
             import uuid
+
             from datetime import datetime
 
             # Create test session seguendo schema v3.3.0
-            test_vector = [random.random() for _ in range(3072)]
+            test_vector = [secrets.SystemRandom().random() for _ in range(3072)]
             test_session_id = str(uuid.uuid4())
 
             # Payload conforme a schema v3.3.0 (sample completo)
@@ -257,13 +270,15 @@ class CBTQdrantV330Setup:
             print(f"✅ Semantic search: {len(search_results.points)} results")
 
             # Test 3: Filtered search (RAG use case)
+            from qdrant_client.models import MatchValue
+
             filter_condition = Filter(
                 must=[
-                    FieldCondition(key="rag_metadata.language", match={"value": "it"}),
+                    FieldCondition(key="rag_metadata.language", match=MatchValue(value="it")),
                     FieldCondition(key="clinical_assessment.mood_rating", range=Range(gte=5)),
                     FieldCondition(
                         key="clinical_classification.risk_assessment.risk_level",
-                        match={"value": "low"},
+                        match=MatchValue(value="low"),
                     ),
                 ]
             )
@@ -281,7 +296,7 @@ class CBTQdrantV330Setup:
                 must=[
                     FieldCondition(
                         key="cost_monitoring.session_budget.budget_status",
-                        match={"value": "within_limits"},
+                        match=MatchValue(value="within_limits"),
                     )
                 ]
             )
@@ -297,7 +312,7 @@ class CBTQdrantV330Setup:
             # Test 5: Verifica payload completo
             if search_results.points:
                 retrieved = search_results.points[0]
-                payload_keys = set(retrieved.payload.keys())
+                payload_keys = set(retrieved.payload.keys()) if retrieved.payload else set()  # type: ignore[union-attr]
                 expected_keys = {
                     "session_id",
                     "timestamp",
@@ -370,9 +385,21 @@ class CBTQdrantV330Setup:
 
             # Config details
             if hasattr(info.config, "params") and info.config.params:
+                vectors_config = info.config.params.vectors
+                # Handle different vector config types
+                if hasattr(vectors_config, "size"):
+                    vector_size = vectors_config.size
+                    distance = str(vectors_config.distance)
+                elif isinstance(vectors_config, dict) and "default" in vectors_config:
+                    vector_size = vectors_config["default"].size
+                    distance = str(vectors_config["default"].distance)
+                else:
+                    vector_size = "unknown"
+                    distance = "unknown"
+
                 result["vector_config"] = {
-                    "size": info.config.params.vectors.size,
-                    "distance": str(info.config.params.vectors.distance),
+                    "size": vector_size,
+                    "distance": distance,
                     "optimized_for": "OpenAI text-embedding-3-large",
                 }
 
@@ -428,7 +455,7 @@ class CBTQdrantV330Setup:
         return True
 
 
-def main():
+def main() -> int:
     """Setup principale v3.3.0"""
     print("CBT Journal - Qdrant Setup v3.3.0")
     print("Collection: cbt_journal_sessions")

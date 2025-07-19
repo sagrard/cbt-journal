@@ -4,18 +4,18 @@ CBT Vector Store - Qdrant wrapper with cost control integration
 Handles all vector operations for CBT Journal sessions
 """
 
-import uuid
 import logging
-from datetime import datetime
-from typing import Dict, List, Optional, Any
+import uuid
+from typing import Any, Dict, List, Optional, Sequence, cast
 
+from datetime import datetime
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
-    PointStruct,
-    Filter,
     FieldCondition,
-    Range,
+    Filter,
     MatchValue,
+    PointStruct,
+    Range,
 )
 
 from ..utils.cost_control import CostControlManager
@@ -72,10 +72,19 @@ class CBTVectorStore:
             # Verify collection config
             info = self.client.get_collection(self.collection_name)
             if hasattr(info.config, "params") and info.config.params:
-                vector_config = info.config.params.vectors
-                if vector_config.size != 3072:
+                vectors_config = info.config.params.vectors
+                # Handle different vector config types
+                if vectors_config is None:
+                    raise CBTVectorStoreError("Vector config is None")
+                elif hasattr(vectors_config, "size"):
+                    vector_size = vectors_config.size
+                elif isinstance(vectors_config, dict) and "default" in vectors_config:
+                    vector_size = vectors_config["default"].size
+                else:
+                    raise CBTVectorStoreError("Cannot determine vector size from config")
+                if vector_size != 3072:
                     raise CBTVectorStoreError(
-                        f"Collection vector size {vector_config.size}, expected 3072"
+                        f"Collection vector size {vector_size}, expected 3072"
                     )
 
             self.logger.info(f"Collection '{self.collection_name}' verified")
@@ -174,7 +183,10 @@ class CBTVectorStore:
                 if isinstance(value, str):
                     filter_conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
                 elif isinstance(value, (int, float)):
-                    filter_conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
+                    # Convert numeric values to string for MatchValue
+                    filter_conditions.append(
+                        FieldCondition(key=key, match=MatchValue(value=str(value)))
+                    )
                 elif isinstance(value, dict) and "range" in value:
                     range_filter = value["range"]
                     filter_conditions.append(
@@ -184,7 +196,11 @@ class CBTVectorStore:
                         )
                     )
 
-        query_filter = Filter(must=filter_conditions) if filter_conditions else None
+        query_filter = (
+            Filter(must=cast(Sequence[FieldCondition], filter_conditions))
+            if filter_conditions
+            else None
+        )
 
         try:
             # Perform search
@@ -306,7 +322,14 @@ class CBTVectorStore:
                     )
 
                 existing_vector = existing_points[0].vector
-                point = PointStruct(id=session_id, vector=existing_vector, payload=updated_payload)
+                # Ensure vector is properly typed
+                if existing_vector is None:
+                    raise CBTVectorStoreError(f"No vector found for session {session_id}")
+                point = PointStruct(
+                    id=session_id,
+                    vector=cast(List[float], existing_vector),
+                    payload=updated_payload,
+                )
 
             # Update in Qdrant
             result = self.client.upsert(collection_name=self.collection_name, points=[point])
@@ -365,10 +388,13 @@ class CBTVectorStore:
         filter_conditions = []
 
         for key, value in filters.items():
-            if isinstance(value, str):
+            if isinstance(value, (str, int)):
                 filter_conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
-            elif isinstance(value, (int, float)):
-                filter_conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
+            elif isinstance(value, float):
+                # Convert float to string for matching
+                filter_conditions.append(
+                    FieldCondition(key=key, match=MatchValue(value=str(value)))
+                )
             elif isinstance(value, dict) and "range" in value:
                 range_filter = value["range"]
                 filter_conditions.append(
@@ -381,7 +407,7 @@ class CBTVectorStore:
         if not filter_conditions:
             raise CBTVectorStoreError("At least one filter condition required")
 
-        query_filter = Filter(must=filter_conditions)
+        query_filter = Filter(must=cast(Sequence[FieldCondition], filter_conditions))
 
         try:
             # Use scroll for filter-only search
@@ -433,10 +459,29 @@ class CBTVectorStore:
 
             # Add config details if available
             if hasattr(info.config, "params") and info.config.params:
-                stats["config"] = {
-                    "vector_size": info.config.params.vectors.size,
-                    "distance": str(info.config.params.vectors.distance),
+                vectors_config = info.config.params.vectors
+                # Handle different vector config types
+                if vectors_config is None:
+                    vector_size = None
+                    distance = None
+                elif hasattr(vectors_config, "size"):
+                    vector_size = vectors_config.size
+                    distance = (
+                        str(vectors_config.distance)
+                        if hasattr(vectors_config, "distance")
+                        else None
+                    )
+                elif isinstance(vectors_config, dict) and "default" in vectors_config:
+                    vector_size = vectors_config["default"].size
+                    distance = str(vectors_config["default"].distance)
+                else:
+                    vector_size = "unknown"
+                    distance = "unknown"
+                config_dict: Dict[str, Any] = {
+                    "vector_size": vector_size,
+                    "distance": distance,
                 }
+                stats.update({"config": config_dict})
 
             return stats
 
@@ -450,7 +495,7 @@ class CBTVectorStore:
         Returns:
             Health status and diagnostics
         """
-        health_status = {
+        health_status: Dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "collection_name": self.collection_name,
             "status": "unknown",
@@ -463,7 +508,7 @@ class CBTVectorStore:
             health_status["checks"]["collection_access"] = "ok"
 
             # Check 2: Collection exists
-            collection_names = [col.name for col in collections.collections]
+            collection_names: List[str] = [col.name for col in collections.collections]
             if self.collection_name in collection_names:
                 health_status["checks"]["collection_exists"] = "ok"
             else:

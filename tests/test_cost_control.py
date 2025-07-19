@@ -5,22 +5,22 @@ Verifies all functionalities with realistic CBT scenarios
 """
 
 import os
-import sys
-import uuid
-import tempfile
 import shutil
-import sqlite3
+import sys
+import tempfile
 import threading
-from datetime import datetime, timedelta
-from pathlib import Path
+import uuid
 from contextlib import closing
+from pathlib import Path
 
 import pytest
+import sqlite3
+from datetime import datetime, timedelta
+
+from cbt_journal.utils.cost_control import BudgetStatus, CostControlManager
 
 # Setup path for imports
 sys.path.append(str(Path(__file__).parent.parent))
-
-from cbt_journal.utils.cost_control import CostControlManager, BudgetStatus
 
 
 # ---- Fixtures ----
@@ -91,7 +91,7 @@ def test_edge_cases(cost_manager):
             assert not case["should_work"], f"Edge case failed: {case['name']} - {e}"
 
 
-def test_data_persistence(cost_manager, db_path):
+def test_data_persistence(cost_manager, db_path):  # noqa: U100
     """Test that cost data is persistent between manager instances"""
     _ = "persistence_test"
     test_cases = [

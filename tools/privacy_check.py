@@ -4,8 +4,9 @@ Privacy Check per Qdrant
 Verifica che telemetry sia completamente disabilitata
 """
 
-import requests
 from typing import Any
+
+import requests
 from qdrant_client import QdrantClient
 
 
@@ -66,8 +67,6 @@ class QdrantPrivacyCheck:
             print("✅ Metrics endpoint: NOT ACCESSIBLE")
             return True
 
-        return False
-
     def check_cluster_info(self) -> bool:
         """Verifica che info cluster non includano dati sensibili"""
         try:
@@ -109,11 +108,21 @@ class QdrantPrivacyCheck:
     def check_docker_environment(self) -> bool:
         """Verifica variabili ambiente Docker"""
         try:
+            import shutil
             import subprocess
 
-            # Check container environment
+            # Verify docker command exists
+            if not shutil.which("docker"):
+                print("⚠️ Docker command not found in PATH")
+                return False
+
+            # Check container environment with secure subprocess call
             result = subprocess.run(
-                ["docker", "exec", "cbt_qdrant", "env"], capture_output=True, text=True, timeout=10
+                ["docker", "exec", "cbt_qdrant", "env"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,  # Don't raise on non-zero exit
             )
 
             if result.returncode == 0:

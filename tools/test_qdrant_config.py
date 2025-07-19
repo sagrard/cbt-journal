@@ -4,12 +4,13 @@ Test configurazione default Qdrant per sistema CBT
 Verifica che tutto funzioni correttamente senza config custom
 """
 
-import uuid
-import random
+import secrets
 import time
+import uuid
 from typing import Dict
+
 from qdrant_client import QdrantClient
-from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, FieldCondition, Range
+from qdrant_client.models import Distance, FieldCondition, Filter, PointStruct, Range, VectorParams
 
 
 class QdrantDefaultConfigTest:
@@ -35,14 +36,30 @@ class QdrantDefaultConfigTest:
                 # Mostra config effettiva
                 if hasattr(info.config, "params"):
                     params = info.config.params
-                    print(f"   Vector size: {params.vectors.size}")
-                    print(f"   Distance: {params.vectors.distance}")
+                    vectors_config = params.vectors
+                    # Handle different vector config types
+                    if hasattr(vectors_config, "size") and vectors_config is not None:
+                        vector_size = vectors_config.size
+                        distance = vectors_config.distance
+                    elif isinstance(vectors_config, dict) and "default" in vectors_config:
+                        vector_size = vectors_config["default"].size
+                        distance = vectors_config["default"].distance
+                    else:
+                        vector_size = "unknown"
+                        distance = "unknown"
+
+                    print(f"   Vector size: {vector_size}")
+                    print(f"   Distance: {distance}")
                     print(f"   Shard number: {params.shard_number}")
                     print(f"   Replication factor: {params.replication_factor}")
 
                     # Info HNSW se disponibile
-                    if hasattr(params.vectors, "hnsw_config") and params.vectors.hnsw_config:
-                        hnsw = params.vectors.hnsw_config
+                    if (
+                        hasattr(vectors_config, "hnsw_config")
+                        and vectors_config is not None
+                        and vectors_config.hnsw_config
+                    ):
+                        hnsw = vectors_config.hnsw_config
                         print(f"   HNSW m: {hnsw.m}")
                         print(f"   HNSW ef_construct: {hnsw.ef_construct}")
 
@@ -73,13 +90,13 @@ class QdrantDefaultConfigTest:
             start_time = time.time()
             test_points = []
             for i in range(10):
-                vector = [random.random() for _ in range(3072)]
+                vector = [secrets.SystemRandom().random() for _ in range(3072)]
                 payload = {
                     "session_id": f"perf_test_{i}",
                     "content": f"Performance test session {i} con contenuto più lungo per simulare sessioni CBT reali",
                     "timestamp": f"2025-01-{i + 1:02d}T10:00:00Z",
-                    "mood": random.randint(1, 10),
-                    "anxiety": random.randint(1, 10),
+                    "mood": secrets.SystemRandom().randint(1, 10),
+                    "anxiety": secrets.SystemRandom().randint(1, 10),
                     "tags": ["performance", "test", f"batch_{i // 3}"],
                 }
                 test_points.append(
@@ -152,7 +169,7 @@ class QdrantDefaultConfigTest:
                 try:
                     points = []
                     for i in range(5):
-                        vector = [random.random() for _ in range(3072)]
+                        vector = [secrets.SystemRandom().random() for _ in range(3072)]
                         payload = {
                             "session_id": f"concurrent_batch_{batch_id}_{i}",
                             "content": f"Concurrent test batch {batch_id} item {i}",
@@ -251,7 +268,7 @@ class QdrantDefaultConfigTest:
         return True
 
 
-def main():
+def main() -> int:
     """Test principale"""
     tester = QdrantDefaultConfigTest()
 

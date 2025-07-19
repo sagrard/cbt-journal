@@ -4,15 +4,14 @@ Complete Tests for Qdrant Setup v3.3.0
 Validation of CBT Journal collection functionality
 """
 
-import uuid
 import random
 import time
-from datetime import datetime, timedelta
+import uuid
 
 import pytest
-
+from datetime import datetime, timedelta
 from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct, Filter, FieldCondition, Range
+from qdrant_client.models import FieldCondition, Filter, PointStruct, Range
 
 
 # ---- Fixtures ----
@@ -349,7 +348,7 @@ def test_stress_performance(qdrant_client, collection_name):
     assert isinstance(avg_complex_time, float)
 
 
-def test_error_handling(qdrant_client, collection_name, test_points):
+def test_error_handling(qdrant_client, collection_name, test_points):  # noqa: U100
     """Test error handling for problematic scenarios"""
     # Test 1: Invalid vector dimensions
     invalid_point = PointStruct(
@@ -358,7 +357,7 @@ def test_error_handling(qdrant_client, collection_name, test_points):
         payload={"test": "invalid_vector"},
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises((ValueError, RuntimeError, Exception)):
         qdrant_client.upsert(collection_name=collection_name, points=[invalid_point])
 
     # Test 2: Query with invalid filter

@@ -5,14 +5,15 @@ Implementa budget protection bulletproof secondo schema v3.3.0
 """
 
 import contextlib
-import os
 import json
-import sqlite3
-from datetime import datetime, date, timedelta
-from dataclasses import dataclass, asdict
-from typing import Dict, List, Optional, Tuple
-from enum import Enum
 import logging
+import os
+from dataclasses import asdict, dataclass
+from enum import Enum
+from typing import Dict, List, Optional, Tuple
+
+import sqlite3
+from datetime import date, datetime, timedelta
 
 
 class BudgetStatus(Enum):

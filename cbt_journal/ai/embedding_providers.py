@@ -31,12 +31,12 @@ class EmbeddingResult:
 class EmbeddingProvider(ABC):
     """Abstract base class for embedding providers"""
 
-    def __init__(self, **config: Any) -> None:
+    def __init__(self, **config: Any) -> None:  # noqa: U100
         """Initialize provider with configuration"""
         self.price_per_million_tokens = self._get_pricing()
 
     @abstractmethod
-    async def embed_text(self, text: str) -> EmbeddingResult:
+    async def embed_text(self, text: str) -> EmbeddingResult:  # noqa: U100
         """Generate embedding for input text"""
         pass
 
